@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-slate-50 text-navy-900 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04";
+  }
+  ::selection {
+    @apply bg-accent-200 text-navy-900;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-500/50 ring-offset-2;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-slate-200/80 bg-white shadow-card;
+  }
+  .card-header {
+    @apply flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4;
+  }
+  .label {
+    @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-navy-900 shadow-sm transition placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/25 disabled:cursor-not-allowed disabled:bg-slate-100;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-navy-900 text-white shadow-sm hover:bg-navy-800 active:bg-navy-950;
+  }
+  .btn-accent {
+    @apply btn bg-accent-600 text-white shadow-sm hover:bg-accent-700;
+  }
+  .btn-ghost {
+    @apply btn border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50;
+  }
+  .btn-danger {
+    @apply btn border border-red-200 bg-white text-red-700 hover:bg-red-50;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset;
+  }
+  .table-wrap {
+    @apply w-full overflow-x-auto;
+  }
+  .data-table {
+    @apply min-w-full border-collapse text-left text-sm;
+  }
+  .data-table thead th {
+    @apply whitespace-nowrap border-b border-slate-200 bg-slate-50/70 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+  .data-table tbody td {
+    @apply border-b border-slate-100 px-3 py-3 align-top text-slate-700;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-slate-50/60;
+  }
+  .link {
+    @apply font-semibold text-accent-700 hover:text-accent-800 hover:underline;
+  }
+}
+
+.leaflet-container {
+  font-family: inherit;
+  background: #e8eef6;
+}
+
+.leaflet-control-attribution {
+  font-size: 9px !important;
+}
+
+.recharts-default-tooltip {
+  border-radius: 8px !important;
+  border: 1px solid #dbe4ef !important;
+  box-shadow: 0 10px 30px -12px rgba(11, 37, 69, 0.35) !important;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

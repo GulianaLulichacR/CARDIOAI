@@ -1,0 +1,6 @@
+# Dependencias opcionales (no necesarias para el despliegue local con SQLite).
+# MLflow requiere ~500 MB adicionales y se activa con MLFLOW_ENABLED=true.
+mlflow==3.4.0
+
+# Para PostgreSQL en producción:
+psycopg[binary]==3.2.9

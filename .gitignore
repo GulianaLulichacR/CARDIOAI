@@ -1,0 +1,237 @@
+﻿# ========================================
+# CARDIOAI - .gitignore
+# ========================================
+
+# ========================================
+# Python
+# ========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+.conda/
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Paquetes y compilación
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+share/python-wheels/
+
+# Herramientas de desarrollo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
+
+# Archivos temporales
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ========================================
+# Node.js / React / Frontend
+# ========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+.next/
+out/
+.vite/
+*.local
+
+# Testing
+coverage/
+.nyc_output/
+
+# Cache
+.npm/
+.eslintcache/
+.stylelintcache/
+.parcel-cache/
+.turbo/
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# ========================================
+# IDE y Sistema Operativo
+# ========================================
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.nfs*
+
+# ========================================
+# Archivos de entorno y secretos
+# ========================================
+.env
+.env.*
+!.env.example
+!.env.development.example
+!.env.local.example
+
+# Credentials
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Local configuration
+config.local.*
+*.local.json
+
+# ========================================
+# Machine Learning y Datos Experimentales
+# ========================================
+# ML tracking
+mlruns/
+mlartifacts/
+wandb/
+lightning_logs/
+tensorboard/
+optuna_storage/
+catboost_info/
+
+# Modelos generados (común pero revisar caso por caso)
+*.pkl
+*.joblib
+*.h5
+*.keras
+*.pt
+*.pth
+*.onnx
+*.pb
+*.tflite
+*.safetensors
+
+# Datos temporales - pero NO ignorar datos de ejemplo/documentación importante
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/datasets/README*
+!data/models/README*
+
+# Archivos temporales de experimentos
+outputs/
+runs/
+checkpoints/
+experiments/temp/
+
+# ========================================
+# Docker y Servicios
+# ========================================
+# Volúmenes y datos locales
+postgres_data/
+pgdata/
+minio_data/
+redis_data/
+volumes/
+mongo_data/
+
+# Contenedores y logs
+*.pid
+docker-compose.override.local.yml
+docker-compose.local.yml
+
+# ========================================
+# Otros archivos temporales
+# ========================================
+*.bak
+*.old
+*.orig
+*.rej
+.install.log
+install.log
+install2.log
+install_ml.log
+Thumbs.db
+
+# Archivos de sistema
+.directory
+
+# Archivos generados por herramientas
+*.sqlite
+*.sqlite3
+*.db-journal
