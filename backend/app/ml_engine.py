@@ -20,8 +20,10 @@ Estrategia de validación:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import os
 import time
 import traceback
 from dataclasses import dataclass
@@ -54,6 +56,8 @@ from sqlalchemy.orm import Session
 
 from .config import MODEL_DIR, settings
 from .demo_data import (
+    ADDITIONAL_BOOLEAN,
+    ADDITIONAL_NUMERIC,
     BOOLEAN_FEATURES,
     CATEGORICAL_FEATURES,
     FEATURE_LABELS,
@@ -66,6 +70,12 @@ from .demo_data import (
     quality_report,
 )
 from .models import Alert, Dataset, ModelRun, utcnow
+from .public_datasets import resolve_features
+
+# Entradas realmente utilizables: esquema base + variables adicionales que
+# algunos datasets públicos aportan (p. ej., cigarrillos/día, medicación).
+NUMERIC_INPUTS = NUMERIC_FEATURES + ADDITIONAL_NUMERIC
+BOOLEAN_INPUTS = BOOLEAN_FEATURES + ADDITIONAL_BOOLEAN
 
 try:
     import optuna
@@ -126,7 +136,9 @@ class SplitBundle:
     temporal_test: pd.DataFrame
     geographic_test: pd.DataFrame
     geo_holdout: str | None
-    cutoff_year: int
+    cutoff_year: int | None
+    split_type: str
+    design_note: str
 
 
 # ---------------------------------------------------------------------------
@@ -149,37 +161,113 @@ def horizon_labels(df: pd.DataFrame, horizon: int) -> tuple[np.ndarray, np.ndarr
 
 
 def split_dataset(df: pd.DataFrame, seed: int = SEED) -> SplitBundle:
+    """Partición honesta y explícita.
+
+    - Temporal solo si existe un año de cohorte informativo.
+    - Geográfica solo si hay varias regiones y la región retenida se excluye
+      por completo del entrenamiento (sin fuga).
+    - En caso contrario, holdout aleatorio estratificado, declarado como tal.
+    """
     df = df.dropna(subset=["followup_years", "event"]).copy()
     df["event"] = df["event"].astype(bool)
-    df["cohort_year"] = pd.to_numeric(df.get("cohort_year", 2015), errors="coerce").fillna(2015).astype(int)
-
-    cutoff = int(df["cohort_year"].quantile(0.8))
-    temporal_mask = df["cohort_year"] >= cutoff
-    train = df[~temporal_mask]
-    temporal_test = df[temporal_mask]
-    if len(temporal_test) < 40 or len(train) < 200:
-        train, temporal_test = train_test_split(
-            df, test_size=0.2, random_state=seed, stratify=df["event"]
-        )
-        cutoff = int(train["cohort_year"].max()) if len(train) else 0
-
-    region_counts = df["region"].value_counts()
-    candidates = [
-        r for r in ["Nariño", "Cauca", "Meta", "Tolima", "La Guajira"]
-        if r in region_counts.index and region_counts[r] >= 30 and region_counts[r] <= len(df) * 0.15
-    ]
-    geo_holdout = candidates[0] if candidates else None
-    if geo_holdout:
-        geographic_test = df[df["region"] == geo_holdout]
-        geo_train = df[df["region"] != geo_holdout]
-        if len(geographic_test) < 25 or len(geo_train) < 150:
-            geographic_test = df.iloc[0:0]
-            geo_holdout = None
+    if "cohort_year" in df.columns:
+        df["cohort_year"] = pd.to_numeric(df["cohort_year"], errors="coerce")
     else:
-        geographic_test = df.iloc[0:0]
+        df["cohort_year"] = np.nan
 
-    return SplitBundle(train=train, temporal_test=temporal_test, geographic_test=geographic_test,
-                       geo_holdout=geo_holdout, cutoff_year=cutoff)
+    n = len(df)
+    if n < 50:
+        raise ValueError("Se requieren al menos 50 registros para particionar.")
+
+    # 1) Retención geográfica real: se aparta antes de cualquier entrenamiento.
+    geo_holdout: str | None = None
+    geographic_test = df.iloc[0:0].copy()
+    model_df = df
+    if "region" in df.columns:
+        counts = df["region"].astype(str).value_counts()
+        eligible = [
+            str(r)
+            for r, c in counts.items()
+            if len(counts) >= 2 and 40 <= int(c) <= int(0.25 * n)
+        ]
+        if eligible:
+            candidate = sorted(eligible, key=lambda r: (-int(counts[r]), r))[0]
+            candidate_test = df[df["region"].astype(str) == candidate]
+            candidate_train = df[df["region"].astype(str) != candidate]
+            if (
+                len(candidate_test) >= 40
+                and len(candidate_train) >= 200
+                and candidate_test["event"].nunique() == 2
+            ):
+                geo_holdout = candidate
+                geographic_test = candidate_test.copy()
+                model_df = candidate_train
+
+    # 2) Temporal solo si el año de cohorte existe, varía y deja grupos suficientes.
+    temporal_ok = False
+    cutoff: int | None = None
+    years = pd.to_numeric(model_df.get("cohort_year"), errors="coerce")
+    if years.notna().mean() >= 0.95 and years.nunique(dropna=True) >= 3:
+        candidate_cutoff = int(years.quantile(0.8))
+        candidate_test = model_df[years >= candidate_cutoff]
+        candidate_train = model_df[years < candidate_cutoff]
+        if (
+            len(candidate_test) >= 60
+            and len(candidate_train) >= 300
+            and candidate_test["event"].nunique() == 2
+            and candidate_train["event"].nunique() == 2
+        ):
+            temporal_ok = True
+            cutoff = candidate_cutoff
+            test_df = candidate_test
+            train_df = candidate_train
+
+    if temporal_ok:
+        split_kind = "temporal"
+    else:
+        if model_df["event"].nunique() < 2 or len(model_df) < 100:
+            raise ValueError(
+                "No hay suficientes eventos ni registros para una partición de evaluación."
+            )
+        train_df, test_df = train_test_split(
+            model_df,
+            test_size=0.2,
+            random_state=seed,
+            stratify=model_df["event"],
+        )
+        split_kind = "random"
+
+    if geo_holdout:
+        split_kind = f"{split_kind}+geographic"
+
+    if split_kind.startswith("temporal"):
+        note = (
+            "Holdout temporal: las cohortes más recientes se reservan para prueba; "
+            "Optuna y el umbral usan solo entrenamiento/validación interna."
+        )
+    else:
+        note = (
+            "Holdout aleatorio estratificado 80/20: el dataset no contiene un año de "
+            "cohorte informativo, por lo que no se afirma validación temporal."
+        )
+    if geo_holdout:
+        note += (
+            f" Retención geográfica real: la región '{geo_holdout}' se excluyó de "
+            "entrenamiento y prueba; se evalúa por separado."
+        )
+    else:
+        note += " No se aplicó retención geográfica (una sola región o tamaño insuficiente)."
+
+    return SplitBundle(
+        train=train_df,
+        temporal_test=test_df,
+        geographic_test=geographic_test,
+        geo_holdout=geo_holdout,
+        cutoff_year=cutoff,
+        split_type=split_kind,
+        design_note=note,
+    )
+
 
 
 def load_training_frame(db: Session, dataset_id: int | None) -> tuple[pd.DataFrame, bool, Dataset | None]:
@@ -219,8 +307,9 @@ def load_training_frame(db: Session, dataset_id: int | None) -> tuple[pd.DataFra
 
 def survival_prep_frame(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    for col in BOOLEAN_FEATURES:
-        out[col] = out[col].fillna(False).astype(int)
+    for col in BOOLEAN_INPUTS:
+        if col in out.columns:
+            out[col] = out[col].astype("boolean").fillna(False).astype(int)
     return out
 
 
@@ -230,8 +319,12 @@ def survival_prep_frame(df: pd.DataFrame) -> pd.DataFrame:
 
 
 class SurvivalPreprocessor:
-    def __init__(self) -> None:
-        self.numeric_cols = NUMERIC_FEATURES + BOOLEAN_FEATURES
+    def __init__(self, features: list[str] | None = None) -> None:
+        self.features = list(features or FEATURES)
+        self.numeric_cols = [
+            f for f in self.features if f in NUMERIC_INPUTS or f in BOOLEAN_INPUTS
+        ]
+        self.categorical_cols = [f for f in self.features if f in CATEGORICAL_FEATURES]
         self.medians: dict[str, float] = {}
         self.means: dict[str, float] = {}
         self.stds: dict[str, float] = {}
@@ -249,8 +342,12 @@ class SurvivalPreprocessor:
             self.means[col] = float(filled.mean())
             std = float(filled.std(ddof=0))
             self.stds[col] = std if std > 1e-9 else 1.0
-        dummies = pd.get_dummies(work[CATEGORICAL_FEATURES].astype(str), prefix=CATEGORICAL_FEATURES)
-        self.dummy_columns = list(dummies.columns)
+        self.dummy_columns = []
+        if self.categorical_cols:
+            dummies = pd.get_dummies(
+                work[self.categorical_cols].astype(str), prefix=self.categorical_cols
+            )
+            self.dummy_columns = list(dummies.columns)
         self.columns = self.numeric_cols + self.dummy_columns
         self.feature_map = {c: c for c in self.numeric_cols}
         for dummy in self.dummy_columns:
@@ -265,10 +362,13 @@ class SurvivalPreprocessor:
             values = pd.to_numeric(work[col], errors="coerce").fillna(self.medians[col])
             out[col] = (values - self.means[col]) / self.stds[col]
         if self.dummy_columns:
-            dummies = pd.get_dummies(work[CATEGORICAL_FEATURES].astype(str), prefix=CATEGORICAL_FEATURES)
+            dummies = pd.get_dummies(
+                work[self.categorical_cols].astype(str), prefix=self.categorical_cols
+            )
             dummies = dummies.reindex(columns=self.dummy_columns, fill_value=0)
             out = pd.concat([out, dummies.astype(float)], axis=1)
         return out.reindex(columns=self.columns, fill_value=0.0)
+
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return self.fit(df).transform(df)
@@ -323,6 +423,62 @@ def calibration_slope(y: np.ndarray, p: np.ndarray) -> float | None:
         return round(float(model.coef_[0][0]), 3)
     except Exception:
         return None
+
+
+def calibration_intercept(y: np.ndarray, p: np.ndarray) -> float | None:
+    """Calibración en grande: intercepto de logit(Y) ~ 1 + logit(p)."""
+    if len(np.unique(y)) < 2:
+        return None
+    logit = np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6))).reshape(-1, 1)
+    try:
+        model = LogisticRegression(solver="lbfgs", max_iter=1000)
+        model.fit(logit, y)
+        return round(float(model.intercept_[0]), 3)
+    except Exception:
+        return None
+
+
+def expected_calibration_error(y: np.ndarray, p: np.ndarray, bins: int = 10) -> float | None:
+    groups = calibration_bins(y, p, bins)
+    total = sum(item["n"] for item in groups)
+    if not total:
+        return None
+    ece = sum(
+        item["n"] / total * abs(item["frac_pos"] - item["mean_pred"]) for item in groups
+    )
+    return round(float(ece), 4)
+
+
+def hosmer_lemeshow(y: np.ndarray, p: np.ndarray, groups: int = 10) -> dict[str, Any] | None:
+    """Prueba de Hosmer-Lemeshow sobre deciles de probabilidad predicha."""
+    if len(np.unique(y)) < 2 or len(y) < groups * 2:
+        return None
+    frame = pd.DataFrame({"y": y.astype(int), "p": np.clip(p, 1e-6, 1 - 1e-6)})
+    frame["bin"] = pd.qcut(frame["p"].rank(method="first"), q=groups, labels=False)
+    chi2 = 0.0
+    used = 0
+    for _, grp in frame.groupby("bin"):
+        n_g = len(grp)
+        o1 = float(grp["y"].sum())
+        e1 = float(grp["p"].sum())
+        o0 = n_g - o1
+        e0 = n_g - e1
+        if e1 > 0:
+            chi2 += (o1 - e1) ** 2 / e1
+        if e0 > 0:
+            chi2 += (o0 - e0) ** 2 / e0
+        used += 1
+    if used < 3:
+        return None
+    from scipy.stats import chi2 as chi2_dist
+
+    dof = used - 2
+    return {
+        "chi2": round(float(chi2), 3),
+        "df": int(dof),
+        "p_value": round(float(chi2_dist.sf(chi2, dof)), 4),
+        "groups": int(used),
+    }
 
 
 def dca_points(y: np.ndarray, p: np.ndarray, thresholds: list[float] | None = None) -> list[dict[str, float]]:
@@ -406,6 +562,9 @@ def full_metrics(y: np.ndarray, p: np.ndarray, threshold: float) -> dict[str, An
         metrics["pr_curve"] = {"recall": [], "precision": []}
     metrics["calibration"] = calibration_bins(y, p)
     metrics["calibration_slope"] = calibration_slope(y, p)
+    metrics["calibration_intercept"] = calibration_intercept(y, p)
+    metrics["calibration_ece"] = expected_calibration_error(y, p)
+    metrics["hosmer_lemeshow"] = hosmer_lemeshow(y, p)
     metrics["dca"] = dca_points(y, p)
     metrics["auc_ci"] = bootstrap_auc_ci(y, p)
     return metrics
@@ -455,39 +614,51 @@ def summary_importance(names: list[str], values: np.ndarray, feature_map: dict[s
 # ---------------------------------------------------------------------------
 
 
-def build_tree_pipeline(model) -> Pipeline:
-    numeric = Pipeline(
-        [("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())]
-    )
-    categorical = Pipeline(
-        [
-            ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-        ]
-    )
-    pre = ColumnTransformer(
-        [
-            ("num", numeric, NUMERIC_FEATURES),
-            ("cat", categorical, CATEGORICAL_FEATURES),
-            ("bool", numeric, BOOLEAN_FEATURES),
-        ],
-        remainder="drop",
-        verbose_feature_names_out=False,
-    )
+def build_tree_pipeline(model, features: list[str] | None = None) -> Pipeline:
+    features = features or list(FEATURES)
+    numeric_cols = [f for f in features if f in NUMERIC_INPUTS or f in BOOLEAN_INPUTS]
+    categorical_cols = [f for f in features if f in CATEGORICAL_FEATURES]
+    transformers = []
+    if numeric_cols:
+        transformers.append(
+            (
+                "num",
+                Pipeline(
+                    [("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())]
+                ),
+                numeric_cols,
+            )
+        )
+    if categorical_cols:
+        transformers.append(
+            (
+                "cat",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="most_frequent")),
+                        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+                    ]
+                ),
+                categorical_cols,
+            )
+        )
+    pre = ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
     return Pipeline([("pre", pre), ("clf", model)])
 
 
-def _tree_feature_map(names: list[str]) -> dict[str, str]:
+def _tree_feature_map(names: list[str], features: list[str] | None = None) -> dict[str, str]:
+    categorical = [f for f in (features or FEATURES) if f in CATEGORICAL_FEATURES]
     mapping: dict[str, str] = {}
     for name in names:
         base = name.split("__", 1)[-1]
         found = None
-        for cat in CATEGORICAL_FEATURES:
+        for cat in categorical:
             if base.startswith(f"{cat}_"):
                 found = cat
                 break
         mapping[name] = found or base
     return mapping
+
 
 
 def _tree_importance(pipe: Pipeline, feature_map: dict[str, str]) -> list[dict[str, Any]]:
@@ -707,13 +878,20 @@ def _tune_tree(
     labels: np.ndarray,
     trials: int,
     seed: int,
+    features: list[str] | None = None,
 ) -> dict[str, Any]:
     from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import StratifiedKFold
     from xgboost import XGBClassifier
 
-    groups = fit_df["region"].to_numpy()
-    n_splits = min(settings.ml_cv_folds, len(np.unique(groups)))
-    cv = StratifiedGroupKFold(n_splits=max(2, n_splits), shuffle=True, random_state=seed)
+    groups = fit_df["region"].astype(str).to_numpy() if "region" in fit_df.columns else np.array(["all"] * len(fit_df))
+    n_groups = len(np.unique(groups))
+    if n_groups >= 2:
+        n_splits = max(2, min(settings.ml_cv_folds, n_groups))
+        cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    else:
+        n_splits = max(2, min(settings.ml_cv_folds, max(2, len(fit_df) // 100)))
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
     if not OPTUNA_AVAILABLE:
         return (
@@ -731,8 +909,7 @@ def _tune_tree(
                 "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 8),
                 "max_features": trial.suggest_categorical("max_features", ["sqrt", 0.5]),
             }
-            model = RandomForestClassifier(**params, random_state=seed, n_jobs=2,
-                                           class_weight="balanced_subsample")
+            model = RandomForestClassifier(**params, random_state=seed, n_jobs=2)
         else:
             params = {
                 "n_estimators": trial.suggest_int("n_estimators", 200, 450, step=50),
@@ -745,9 +922,14 @@ def _tune_tree(
             }
             model = XGBClassifier(**params, random_state=seed, n_jobs=2, eval_metric="logloss",
                                   tree_method="hist")
-        pipe = build_tree_pipeline(model)
+        pipe = build_tree_pipeline(model, features)
         scores = []
-        for train_idx, val_idx in cv.split(fit_df, labels, groups):
+        split_iter = (
+            cv.split(fit_df, labels, groups)
+            if n_groups >= 2
+            else cv.split(fit_df, labels)
+        )
+        for train_idx, val_idx in split_iter:
             pipe.fit(fit_df.iloc[train_idx], labels[train_idx])
             probs = pipe.predict_proba(fit_df.iloc[val_idx])[:, 1]
             if len(np.unique(labels[val_idx])) > 1:
@@ -770,8 +952,9 @@ def _fit_survival_model(
     trials: int,
     seed: int,
     fixed_params: dict[str, Any] | None = None,
+    features: list[str] | None = None,
 ) -> dict[str, Any]:
-    prep = SurvivalPreprocessor().fit(train_df)
+    prep = SurvivalPreprocessor(features).fit(train_df)
     design = prep.transform(train_df)
     duration = train_df["followup_years"].to_numpy(dtype=float)
     event = train_df["event"].to_numpy()
@@ -850,13 +1033,77 @@ def _survival_risk(bundle: dict[str, Any], df: pd.DataFrame, horizon: int) -> np
 # ---------------------------------------------------------------------------
 
 
+def _subgroup_report(
+    frame: pd.DataFrame,
+    y: np.ndarray,
+    p: np.ndarray,
+    threshold: float,
+) -> list[dict[str, Any]]:
+    """Métricas de subgrupo sobre el holdout, sin usar los datos para ajustar."""
+    results: list[dict[str, Any]] = []
+    candidates: list[tuple[str, str, np.ndarray]] = []
+    if "sex" in frame.columns:
+        sex = frame["sex"].astype(str).to_numpy()
+        for value in ("F", "M"):
+            candidates.append(("sex", value, sex == value))
+    if "age" in frame.columns:
+        age = pd.to_numeric(frame["age"], errors="coerce").to_numpy()
+        candidates.append(("age", "<60", age < 60))
+        candidates.append(("age", ">=60", age >= 60))
+    if "education" in frame.columns:
+        education = frame["education"].astype(str).to_numpy()
+        for value in sorted(set(education)):
+            candidates.append(("education", value, education == value))
+    for variable, value, mask in candidates:
+        mask = np.asarray(mask, dtype=bool)
+        if mask.sum() < 20:
+            continue
+        yy = y[mask]
+        pp = p[mask]
+        if len(np.unique(yy)) < 2:
+            continue
+        m = classification_metrics(yy, pp, threshold)
+        results.append(
+            {
+                "variable": variable,
+                "group": value,
+                "n": int(mask.sum()),
+                "events": int(yy.sum()),
+                "roc_auc": m["roc_auc"],
+                "pr_auc": m["pr_auc"],
+                "brier": m["brier"],
+                "calibration_slope": calibration_slope(yy, pp),
+                "calibration_intercept": calibration_intercept(yy, pp),
+            }
+        )
+    return results
+
+
+def _save_artifact_atomic(artifact: dict[str, Any], path: Path) -> str:
+    """Escribe el artefacto de forma atómica y verifica que sea legible."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    joblib.dump(artifact, tmp)
+    loaded = joblib.load(tmp)
+    if not isinstance(loaded, dict) or loaded.get("kind") != artifact.get("kind"):
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError("El artefacto no superó la verificación de integridad.")
+    os.replace(tmp, path)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _fit_and_evaluate(
     db: Session,
     run: ModelRun,
     df: pd.DataFrame,
     trials: int,
     horizon: int,
+    features: list[str] | None = None,
 ) -> None:
+    features = features or resolve_features(df)
+    if len(features) < 2:
+        raise ValueError(
+            "El dataset no contiene al menos dos predictores utilizables con cobertura suficiente."
+        )
     split = split_dataset(df)
     train_df = split.train.reset_index(drop=True)
     temporal = split.temporal_test.reset_index(drop=True)
@@ -872,82 +1119,125 @@ def _fit_and_evaluate(
     artifact: dict[str, Any] = {
         "kind": run.algorithm,
         "algorithm": run.algorithm,
-        "features": FEATURES,
+        "features": features,
         "horizon": horizon,
+        "split_type": split.split_type,
         "risk_thresholds": {
             "low_max": settings.risk_low_max,
             "high_min": settings.risk_high_min,
-            "basis": "Umbrales configurables de DEMOSTRACIÓN; requieren validación clínica.",
+            "basis": "Umbrales configurables; requieren validación clínica antes de uso asistencial.",
         },
     }
     cv_metrics: dict[str, Any] = {}
+    selection_auc: float | None = None
+    selection_strategy = "validación interna (20 % del entrenamiento)"
 
     if kind == "tree":
-        params = _tune_tree(run.algorithm, fit_df[valid_fit].reset_index(drop=True),
-                            y_fit[valid_fit], trials, SEED)
+        params = _tune_tree(
+            run.algorithm,
+            fit_df[valid_fit].reset_index(drop=True),
+            y_fit[valid_fit],
+            trials,
+            SEED,
+            features,
+        )
         from sklearn.ensemble import RandomForestClassifier
+        from sklearn.model_selection import StratifiedKFold
         from xgboost import XGBClassifier
 
-        if run.algorithm == "random_forest":
-            model = RandomForestClassifier(**params, random_state=SEED, n_jobs=2,
-                                           class_weight="balanced_subsample")
-        else:
-            model = XGBClassifier(**params, random_state=SEED, n_jobs=2,
-                                  eval_metric="logloss", tree_method="hist")
-        pipe = build_tree_pipeline(model)
+        def _new_model():
+            if run.algorithm == "random_forest":
+                return RandomForestClassifier(
+                    **params, random_state=SEED, n_jobs=2
+                )
+            return XGBClassifier(
+                **params, random_state=SEED, n_jobs=2, eval_metric="logloss", tree_method="hist"
+            )
+
+        pipe = build_tree_pipeline(_new_model(), features)
         pipe.fit(fit_df[valid_fit], y_fit[valid_fit])
         val_probs = pipe.predict_proba(val_df)[:, 1]
         if valid_val.sum() and len(np.unique(y_val[valid_val])) > 1:
             threshold = best_threshold(y_val[valid_val], val_probs[valid_val])
+            selection_auc = _safe_auc(y_val[valid_val], val_probs[valid_val])
         else:
             threshold = 0.5
-        # Reentrena con todo el conjunto de entrenamiento y el umbral ya fijado.
+        # Reentrena con todo el entrenamiento y el umbral ya fijado.
         train_valid, y_train = horizon_labels(train_df, horizon)
         pipe.fit(train_df[train_valid], y_train[train_valid])
         names = list(pipe.named_steps["pre"].get_feature_names_out())
-        feature_map = _tree_feature_map(names)
-        artifact.update({"pipeline": pipe, "threshold": threshold, "feature_map": feature_map})
+        feature_map = _tree_feature_map(names, features)
+        artifact.update(
+            {
+                "pipeline": pipe,
+                "threshold": threshold,
+                "feature_map": feature_map,
+                "params": params,
+            }
+        )
         predict_fn: Callable[[pd.DataFrame], np.ndarray] = lambda d: pipe.predict_proba(d)[:, 1]
 
-        # Validación cruzada agrupada por región (solo datos de entrenamiento).
+        # Validación cruzada agrupada por región o estratificada si hay una sola.
         try:
             train_valid, y_tr = horizon_labels(train_df, horizon)
             cv_df = train_df[train_valid].reset_index(drop=True)
             y_tr = y_tr[train_valid]
-            g = cv_df["region"].to_numpy()
-            cv = StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=SEED)
+            groups = (
+                cv_df["region"].astype(str).to_numpy()
+                if "region" in cv_df.columns
+                else np.array(["all"] * len(cv_df))
+            )
+            if len(np.unique(groups)) >= 2:
+                n_splits = max(2, min(settings.ml_cv_folds, len(np.unique(groups))))
+                cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
+                cv_name = f"StratifiedGroupKFold por región ({n_splits} folds)"
+            else:
+                n_splits = max(2, min(settings.ml_cv_folds, max(2, len(cv_df) // 100)))
+                cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
+                cv_name = f"StratifiedKFold estratificado ({n_splits} folds)"
             scores = []
-            for tr_idx, va_idx in cv.split(cv_df, y_tr, g):
-                fold_pipe = build_tree_pipeline(
-                    RandomForestClassifier(**params, random_state=SEED, n_jobs=2,
-                                           class_weight="balanced_subsample")
-                    if run.algorithm == "random_forest"
-                    else XGBClassifier(**params, random_state=SEED, n_jobs=2, eval_metric="logloss",
-                                       tree_method="hist")
-                )
+            split_iter = (
+                cv.split(cv_df, y_tr, groups)
+                if len(np.unique(groups)) >= 2
+                else cv.split(cv_df, y_tr)
+            )
+            for tr_idx, va_idx in split_iter:
+                fold_pipe = build_tree_pipeline(_new_model(), features)
                 fold_pipe.fit(cv_df.iloc[tr_idx], y_tr[tr_idx])
                 probs = fold_pipe.predict_proba(cv_df.iloc[va_idx])[:, 1]
                 if len(np.unique(y_tr[va_idx])) > 1:
                     scores.append(roc_auc_score(y_tr[va_idx], probs))
             if scores:
-                cv_metrics = {"strategy": "StratifiedGroupKFold por región", "folds": len(scores),
-                              "roc_auc_mean": round(float(np.mean(scores)), 4),
-                              "roc_auc_std": round(float(np.std(scores)), 4)}
-        except Exception:
-            cv_metrics = {}
+                cv_metrics = {
+                    "strategy": cv_name,
+                    "folds": len(scores),
+                    "roc_auc_mean": round(float(np.mean(scores)), 4),
+                    "roc_auc_std": round(float(np.std(scores)), 4),
+                }
+        except Exception as exc:  # noqa: BLE001
+            cv_metrics = {"strategy": "no disponible", "error": str(exc)[:200]}
 
         artifact["feature_importance"] = _tree_importance(pipe, feature_map)
 
     elif kind in ("survival", "hybrid"):
-        bundle = _fit_survival_model(run.algorithm, train_df, horizon, trials, SEED)
+        bundle = _fit_survival_model(
+            run.algorithm, train_df, horizon, trials, SEED, features=features
+        )
         val_risk = _survival_risk(bundle, val_df, horizon)
         if valid_val.sum() and len(np.unique(y_val[valid_val])) > 1:
             threshold = best_threshold(y_val[valid_val], val_risk[valid_val])
+            selection_auc = _safe_auc(y_val[valid_val], val_risk[valid_val])
         else:
             threshold = 0.5
         # Reajuste con todo el entrenamiento reutilizando hiperparámetros ya elegidos.
         bundle = _fit_survival_model(
-            run.algorithm, train_df, horizon, 0, SEED, fixed_params=bundle.get("params")
+            run.algorithm,
+            train_df,
+            horizon,
+            0,
+            SEED,
+            fixed_params=bundle.get("params"),
+            features=features,
         )
         artifact.update(bundle)
         artifact["threshold"] = threshold
@@ -978,33 +1268,43 @@ def _fit_and_evaluate(
         val_risk = _lstm_risk(fitted, val_df, horizon)
         if valid_val.sum() and len(np.unique(y_val[valid_val])) > 1:
             threshold = best_threshold(y_val[valid_val], val_risk[valid_val])
+            selection_auc = _safe_auc(y_val[valid_val], val_risk[valid_val])
         else:
             threshold = 0.5
-        # Reentrena con todos los datos de entrenamiento manteniendo la arquitectura.
+        # Reentrena con todo el entrenamiento manteniendo la arquitectura.
         full = _train_lstm(train_df, val_df, epochs=max(20, fitted["epochs"]), seed=SEED)
-        artifact.update({
-            "state_dict": full["state_dict"],
-            "model_config": {"input_size": len(VISIT_FEATURES), "hidden": 24},
-            "seq_mean": full["seq_mean"],
-            "seq_std": full["seq_std"],
-            "baseline_times": full["baseline_times"],
-            "baseline_hazard": full["baseline_hazard"],
-            "threshold": threshold,
-            "epochs": full["epochs"],
-        })
+        artifact.update(
+            {
+                "state_dict": full["state_dict"],
+                "model_config": {"input_size": len(VISIT_FEATURES), "hidden": 24},
+                "seq_mean": full["seq_mean"],
+                "seq_std": full["seq_std"],
+                "baseline_times": full["baseline_times"],
+                "baseline_hazard": full["baseline_hazard"],
+                "threshold": threshold,
+                "epochs": full["epochs"],
+            }
+        )
         model = LSTMAttentionCox(len(VISIT_FEATURES), hidden=24)
         model.load_state_dict(full["state_dict"])
         model.eval()
         artifact["_model"] = model
         predict_fn = lambda d: _lstm_risk({**artifact, "model": model}, d, horizon)
-        params = {"hidden_size": 24, "visits": VISITS, "epochs": full["epochs"],
-                  "optimizer": "Adam", "loss": "Cox partial likelihood (Breslow)",
-                  "weight_decay": 1e-4}
-        # Importancia global por oclusión (6 variables longitudinales).
+        has_visits = any(f"visit_{v}_" in c for v in range(VISITS) for c in df.columns)
+        params = {
+            "hidden_size": 24,
+            "visits": VISITS,
+            "epochs": full["epochs"],
+            "optimizer": "Adam",
+            "loss": "Cox partial likelihood (Breslow)",
+            "weight_decay": 1e-4,
+            "longitudinal_visits_available": has_visits,
+        }
+        # Importancia global por oclusión (variables longitudinales).
         sample = train_df.sample(min(80, len(train_df)), random_state=SEED).reset_index(drop=True)
         base_risk = predict_fn(sample)
         importances = []
-        for j, feature in enumerate(VISIT_FEATURES):
+        for feature in VISIT_FEATURES:
             mutated = sample.copy()
             for v in range(VISITS):
                 col = f"visit_{v}_{feature}"
@@ -1028,42 +1328,91 @@ def _fit_and_evaluate(
         total = sum(i["importance"] for i in importances) or 1.0
         for item in importances:
             item["importance"] = round(item["importance"] / total, 4)
-        artifact["feature_importance"] = sorted(importances, key=lambda i: i["importance"], reverse=True)
+        artifact["feature_importance"] = sorted(
+            importances, key=lambda i: i["importance"], reverse=True
+        )
     else:
         raise ValueError("Tipo de modelo no soportado.")
 
     artifact["trained_at"] = utcnow().isoformat()
 
-    # Evaluación en test temporal y geográfico (nunca usados en ajuste).
+    # Evaluación en holdout (temporal/aleatorio) y geográfico, nunca usados en ajuste.
     temporal_valid, temporal_y = horizon_labels(temporal, horizon)
     temporal_p = predict_fn(temporal)
-    geo_valid, geo_y = horizon_labels(geographic, horizon) if len(geographic) else (np.array([], bool), np.array([]))
+    geo_valid, geo_y = (
+        horizon_labels(geographic, horizon)
+        if len(geographic)
+        else (np.array([], bool), np.array([]))
+    )
     geo_p = predict_fn(geographic) if len(geographic) else np.array([])
 
+    test_metrics = (
+        full_metrics(temporal_y[temporal_valid], temporal_p[temporal_valid], artifact["threshold"])
+        if temporal_valid.sum()
+        else {}
+    )
+    geo_metrics = (
+        full_metrics(geo_y[geo_valid], geo_p[geo_valid], artifact["threshold"])
+        if len(geo_valid) and geo_valid.sum() and len(np.unique(geo_y[geo_valid])) > 1
+        else {}
+    )
+
+    if cv_metrics.get("roc_auc_mean") is not None:
+        selection_auc = cv_metrics["roc_auc_mean"]
+        selection_strategy = f"CV interna: {cv_metrics.get('strategy')}"
     metrics: dict[str, Any] = {
-        "discrimination": full_metrics(temporal_y[temporal_valid], temporal_p[temporal_valid],
-                                      artifact["threshold"]) if temporal_valid.sum() else {},
+        "discrimination": test_metrics,
         "temporal": {
             "n": int(temporal_valid.sum()),
             "cutoff_year": split.cutoff_year,
-            "metrics": full_metrics(temporal_y[temporal_valid], temporal_p[temporal_valid],
-                                    artifact["threshold"]) if temporal_valid.sum() else {},
+            "split_type": split.split_type,
+            "design_note": split.design_note,
+            "prevalence": round(float(np.mean(temporal_y[temporal_valid])), 4)
+            if temporal_valid.sum()
+            else None,
+            "metrics": test_metrics,
         },
         "geographic": {
             "region": split.geo_holdout,
             "n": int(geo_valid.sum()),
-            "metrics": full_metrics(geo_y[geo_valid], geo_p[geo_valid], artifact["threshold"])
-            if len(geo_valid) and geo_valid.sum() and len(np.unique(geo_y[geo_valid])) > 1 else {},
+            "note": (
+                "Región excluida del entrenamiento y de la prueba; se evalúa por separado."
+                if split.geo_holdout
+                else "No disponible: el dataset tiene una sola región o tamaño insuficiente."
+            ),
+            "metrics": geo_metrics,
         },
         "cv": cv_metrics,
-        "validation_strategy": "Temporal (cohortes recientes) + geográfica (región retenida); "
-                               "Optuna y umbral solo en entrenamiento/validación interna.",
-        "is_demo": run.is_demo,
-        "disclaimer": "Métricas sobre datos sintéticos de demostración. No constituyen evidencia clínica.",
+        "selection": {
+            "strategy": selection_strategy,
+            "roc_auc": round(float(selection_auc), 4) if selection_auc is not None else None,
+            "uses_test_set": False,
+        },
+        "validation_strategy": split.design_note,
+        "subgroups": _subgroup_report(
+            temporal[temporal_valid].reset_index(drop=True),
+            temporal_y[temporal_valid],
+            temporal_p[temporal_valid],
+            artifact["threshold"],
+        )
+        if temporal_valid.sum()
+        else [],
+        "test_predictions": [
+            {"y": int(y), "p": round(float(p), 4)}
+            for y, p in zip(temporal_y[temporal_valid], temporal_p[temporal_valid])
+        ],
+        "features_used": features,
+        "is_demo": bool(run.is_demo),
+        "disclaimer": (
+            "Métricas sobre una cohorte observada de acceso público (Framingham). "
+            "No constituyen validación clínica externa ni evidencia de beneficio asistencial."
+            if not run.is_demo
+            else "Métricas sobre datos sintéticos de demostración. No constituyen evidencia clínica."
+        ),
     }
 
-    # C-index para modelos de supervivencia.
-    if kind in ("survival", "hybrid", "deep"):
+    # C-index solo si el seguimiento tiene tiempos distintos (en Framingham todos son 10).
+    if kind in ("survival", "hybrid", "deep") and temporal["followup_years"].nunique() > 1:
         try:
             from lifelines.utils import concordance_index
 
@@ -1077,7 +1426,8 @@ def _fit_and_evaluate(
     artifact.pop("_model", None)
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     artifact_path = MODEL_DIR / f"run_{run.id}_{run.algorithm}.joblib"
-    joblib.dump(artifact, artifact_path)
+    artifact_sha256 = _save_artifact_atomic(artifact, artifact_path)
+    params = {**params, "artifact_sha256": artifact_sha256, "features_used": features}
 
     run.metrics = metrics
     run.params = params
@@ -1087,8 +1437,10 @@ def _fit_and_evaluate(
     run.risk_thresholds = artifact["risk_thresholds"]
     run.train_rows = int(len(train_df))
     run.test_rows = int(len(temporal))
-    run.validation_strategy = metrics["validation_strategy"]
-    run.duration_seconds = round(time.time() - run._started, 1) if hasattr(run, "_started") else None
+    run.validation_strategy = split.design_note
+    run.duration_seconds = (
+        round(time.time() - run._started, 1) if hasattr(run, "_started") else None
+    )
     run.trained_at = utcnow()
     run.status = "ready"
     run.error = None
@@ -1111,7 +1463,14 @@ def _fit_and_evaluate(
             pass
 
 
-def _training_worker(run_ids: list[int], df: pd.DataFrame, trials: int, horizon: int) -> None:
+
+def _training_worker(
+    run_ids: list[int],
+    df: pd.DataFrame,
+    trials: int,
+    horizon: int,
+    features: list[str] | None = None,
+) -> None:
     from .database import SessionLocal
 
     db = SessionLocal()
@@ -1124,7 +1483,7 @@ def _training_worker(run_ids: list[int], df: pd.DataFrame, trials: int, horizon:
             run._started = time.time()  # type: ignore[attr-defined]
             db.commit()
             try:
-                _fit_and_evaluate(db, run, df, trials, horizon)
+                _fit_and_evaluate(db, run, df, trials, horizon, features=features)
                 db.add(
                     Alert(
                         type="modelo",
@@ -1156,6 +1515,19 @@ def _training_worker(run_ids: list[int], df: pd.DataFrame, trials: int, horizon:
         db.close()
 
 
+def _selection_score(run: ModelRun) -> float:
+    """Puntaje de selección: validación interna o CV, nunca el holdout de prueba."""
+    metrics = run.metrics or {}
+    selection = metrics.get("selection") or {}
+    value = selection.get("roc_auc")
+    if value is None:
+        value = (metrics.get("cv") or {}).get("roc_auc_mean")
+    if value is None:
+        # Fallback explícito: se promedia la validación interna disponible sin tocar el test.
+        value = 0.0
+    return float(value or 0.0)
+
+
 def _activate_best(db: Session, run_ids: list[int]) -> None:
     candidates = (
         db.query(ModelRun)
@@ -1164,10 +1536,8 @@ def _activate_best(db: Session, run_ids: list[int]) -> None:
     )
     if not candidates:
         return
-    best = max(
-        candidates,
-        key=lambda r: (r.metrics or {}).get("discrimination", {}).get("roc_auc") or 0.0,
-    )
+    best = max(candidates, key=_selection_score)
+    selection = (best.metrics or {}).get("selection") or {}
     db.query(ModelRun).update({ModelRun.is_active: False})
     best.is_active = True
     db.add(
@@ -1176,9 +1546,10 @@ def _activate_best(db: Session, run_ids: list[int]) -> None:
             severity="info",
             title="Modelo activo actualizado",
             message=(
-                f"Se activó {best.name} por mayor AUC-ROC temporal ("
-                f"{(best.metrics or {}).get('discrimination', {}).get('roc_auc')}). "
-                "La selección automática es una convención de demostración."
+                f"Se activó {best.name} por mayor AUC-ROC en validación interna "
+                f"({selection.get('roc_auc')}, estrategia: {selection.get('strategy')}). "
+                "El holdout de prueba no se usó para seleccionar. La activación automática "
+                "es una convención de demostración."
             ),
             module="models",
         )
@@ -1186,10 +1557,34 @@ def _activate_best(db: Session, run_ids: list[int]) -> None:
     db.commit()
 
 
+def recover_orphaned_runs(db: Session) -> int:
+    """Marca como fallidos los runs que quedaron colgados tras un reinicio."""
+    orphaned = (
+        db.query(ModelRun)
+        .filter(ModelRun.status.in_(("running", "queued")))
+        .all()
+    )
+    if not orphaned:
+        return 0
+    for run in orphaned:
+        run.status = "failed"
+        run.error = (
+            "Entrenamiento interrumpido por reinicio del servidor. "
+            "Vuelva a lanzar el entrenamiento; este run no se reanuda automáticamente."
+        )
+    db.commit()
+    return len(orphaned)
+
+
 def start_training(db: Session, dataset_id: int | None, trials: int, user_id: int | None) -> list[ModelRun]:
     df, is_demo, dataset = load_training_frame(db, dataset_id)
     if len(df) < 200:
         raise ValueError("Se requieren al menos 200 registros para entrenar.")
+    features = resolve_features(df)
+    if len(features) < 2:
+        raise ValueError(
+            "El dataset no contiene al menos dos predictores utilizables con cobertura suficiente."
+        )
     horizon = settings.prediction_horizon_years
     runs: list[ModelRun] = []
     for algo in ALGORITHMS:
@@ -1219,7 +1614,7 @@ def start_training(db: Session, dataset_id: int | None, trials: int, user_id: in
 
     thread = threading.Thread(
         target=_training_worker,
-        args=(run_ids, df, max(1, trials), horizon),
+        args=(run_ids, df, max(1, trials), horizon, features),
         daemon=True,
         name="cardioai-training",
     )
@@ -1250,13 +1645,15 @@ def _records_frame(records: list[dict[str, Any]]) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = np.nan
     # Convierte booleanos textuales provenientes de formularios/CSV.
-    for col in BOOLEAN_FEATURES:
-        df[col] = df[col].map(
-            lambda v: True if str(v).lower() in {"true", "1", "si", "sí", "yes"} else
-            False if str(v).lower() in {"false", "0", "no"} else v
-        )
-    for col in NUMERIC_FEATURES:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in BOOLEAN_INPUTS:
+        if col in df.columns:
+            df[col] = df[col].map(
+                lambda v: True if str(v).lower() in {"true", "1", "si", "sí", "yes"} else
+                False if str(v).lower() in {"false", "0", "no"} else v
+            )
+    for col in NUMERIC_INPUTS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
 

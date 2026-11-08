@@ -50,6 +50,12 @@ CATEGORICAL_FEATURES = ["sex", "region", "education", "income_level", "smoking"]
 BOOLEAN_FEATURES = ["urban", "diabetes", "hypertension", "family_history"]
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES + BOOLEAN_FEATURES
 REQUIRED_COLUMNS = FEATURES + ["event", "followup_years"]
+
+# Variables adicionales que algunos datasets públicos sí aportan. No son
+# obligatorias para la demo, pero se usan si están presentes y tienen cobertura.
+ADDITIONAL_NUMERIC = ["cigs_per_day", "heart_rate"]
+ADDITIONAL_BOOLEAN = ["bp_medication"]
+ADDITIONAL_FEATURES = ADDITIONAL_NUMERIC + ADDITIONAL_BOOLEAN
 VISIT_FEATURES = ["sbp", "chol", "glucose", "bmi", "pm25", "activity"]
 VISITS = 4
 
@@ -77,6 +83,10 @@ FEATURE_LABELS = {
     "stress_level": "Estrés percibido (1-10)",
     "event": "Evento cardiovascular",
     "followup_years": "Años de seguimiento",
+    "cigs_per_day": "Cigarrillos por día",
+    "bp_medication": "Medicación antihipertensiva",
+    "heart_rate": "Frecuencia cardíaca (lpm)",
+    "prevalent_stroke": "Antecedente de accidente cerebrovascular",
 }
 
 FEATURE_DESCRIPTIONS = {
@@ -103,6 +113,10 @@ FEATURE_DESCRIPTIONS = {
     "stress_level": "Escala autoinformada de estrés percibido (1-10).",
     "event": "Ocurrencia de evento cardiovascular durante el seguimiento.",
     "followup_years": "Tiempo de seguimiento hasta evento o censura.",
+    "cigs_per_day": "Número de cigarrillos fumados al día (0 si no fuma).",
+    "bp_medication": "Uso de medicación antihipertensiva al ingreso.",
+    "heart_rate": "Frecuencia cardíaca en reposo.",
+    "prevalent_stroke": "Antecedente de accidente cerebrovascular al ingreso.",
 }
 
 

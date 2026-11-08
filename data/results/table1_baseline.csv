@@ -1,0 +1,64 @@
+group,variable,n,mean,sd,median,missing_pct
+Global,age,4240,49.58,8.57,49.0,0.0
+Global,bmi,4221,25.8,4.08,25.4,0.45
+Global,systolic_bp,4240,132.35,22.03,128.0,0.0
+Global,diastolic_bp,4240,82.9,11.91,82.0,0.0
+Global,cholesterol_total,4190,236.7,44.59,234.0,1.18
+Global,glucose,3852,81.96,23.95,78.0,9.15
+Global,cigs_per_day,4211,9.01,11.92,0.0,0.68
+Global,heart_rate,4239,75.88,12.03,75.0,0.02
+Global,sex=F,2420,57.08,,,
+Global,sex=M,1820,42.92,,,
+Global,smoking=nunca,2145,50.59,,,
+Global,smoking=fumador,2095,49.41,,,
+Global,education=sin_titulo_secundaria,1720,40.57,,,
+Global,education=secundaria,1253,29.55,,,
+Global,education=tecnica,689,16.25,,,
+Global,education=universitaria,473,11.16,,,
+Global,education=nan,105,2.48,,,
+Global,diabetes=False,4131,97.43,,,
+Global,diabetes=True,109,2.57,,,
+Global,hypertension=False,2923,68.94,,,
+Global,hypertension=True,1317,31.06,,,
+Sin evento,age,3596,48.76,8.41,48.0,0.0
+Sin evento,bmi,3587,25.67,3.98,25.25,0.25
+Sin evento,systolic_bp,3596,130.34,20.45,127.0,0.0
+Sin evento,diastolic_bp,3596,82.17,11.34,81.0,0.0
+Sin evento,cholesterol_total,3555,235.15,43.77,232.0,1.14
+Sin evento,glucose,3258,80.68,18.96,78.0,9.4
+Sin evento,cigs_per_day,3569,8.71,11.69,0.0,0.75
+Sin evento,heart_rate,3596,75.76,11.99,75.0,0.0
+Sin evento,sex=F,2119,58.93,,,
+Sin evento,sex=M,1477,41.07,,,
+Sin evento,smoking=nunca,1834,51.0,,,
+Sin evento,smoking=fumador,1762,49.0,,,
+Sin evento,education=sin_titulo_secundaria,1397,38.85,,,
+Sin evento,education=secundaria,1106,30.76,,,
+Sin evento,education=tecnica,601,16.71,,,
+Sin evento,education=universitaria,403,11.21,,,
+Sin evento,education=nan,89,2.47,,,
+Sin evento,diabetes=False,3527,98.08,,,
+Sin evento,diabetes=True,69,1.92,,,
+Sin evento,hypertension=False,2604,72.41,,,
+Sin evento,hypertension=True,992,27.59,,,
+Con evento,age,644,54.15,8.01,55.0,0.0
+Con evento,bmi,634,26.53,4.52,26.16,1.55
+Con evento,systolic_bp,644,143.62,26.69,139.0,0.0
+Con evento,diastolic_bp,644,86.98,14.03,85.5,0.0
+Con evento,cholesterol_total,635,245.39,48.08,241.0,1.4
+Con evento,glucose,594,89.01,41.14,79.0,7.76
+Con evento,cigs_per_day,642,10.63,13.01,2.5,0.31
+Con evento,heart_rate,643,76.53,12.22,75.0,0.16
+Con evento,sex=M,343,53.26,,,
+Con evento,sex=F,301,46.74,,,
+Con evento,smoking=fumador,333,51.71,,,
+Con evento,smoking=nunca,311,48.29,,,
+Con evento,education=sin_titulo_secundaria,323,50.16,,,
+Con evento,education=secundaria,147,22.83,,,
+Con evento,education=tecnica,88,13.66,,,
+Con evento,education=universitaria,70,10.87,,,
+Con evento,education=nan,16,2.48,,,
+Con evento,diabetes=False,604,93.79,,,
+Con evento,diabetes=True,40,6.21,,,
+Con evento,hypertension=True,325,50.47,,,
+Con evento,hypertension=False,319,49.53,,,

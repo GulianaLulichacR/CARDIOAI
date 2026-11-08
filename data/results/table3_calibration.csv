@@ -1,0 +1,6 @@
+model,slope,intercept,ece,hosmer_lemeshow_chi2,hosmer_lemeshow_df,hosmer_lemeshow_p
+Random Forest,0.71,-0.424,0.0292,12.001,8,0.1512
+XGBoost,0.748,-0.366,0.0258,7.27,8,0.5078
+Cox PH,1.009,0.177,0.0232,6.206,8,0.6242
+XGBoost-Cox,0.94,0.088,0.0235,9.723,8,0.285
+LSTM-Attention-Cox,0.801,-0.23,0.03,11.482,8,0.1758

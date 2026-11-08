@@ -1,0 +1,11 @@
+model_a,model_b,auc_1,auc_2,difference,z,p_value
+Random Forest,XGBoost,0.6719,0.6796,-0.0077,-4.825,1e-06
+Random Forest,Cox PH,0.6719,0.7004,-0.0285,-11.238,0.0
+Random Forest,XGBoost-Cox,0.6719,0.7034,-0.0316,-11.408,0.0
+Random Forest,LSTM-Attention-Cox,0.6719,0.6189,0.053,12.068,0.0
+XGBoost,Cox PH,0.6796,0.7004,-0.0208,-9.062,0.0
+XGBoost,XGBoost-Cox,0.6796,0.7034,-0.0238,-9.295,0.0
+XGBoost,LSTM-Attention-Cox,0.6796,0.6189,0.0607,13.971,0.0
+Cox PH,XGBoost-Cox,0.7004,0.7034,-0.0031,-2.422,0.015442
+Cox PH,LSTM-Attention-Cox,0.7004,0.6189,0.0815,13.709,0.0
+XGBoost-Cox,LSTM-Attention-Cox,0.7034,0.6189,0.0846,13.699,0.0

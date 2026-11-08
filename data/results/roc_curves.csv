@@ -1,0 +1,301 @@
+model,fpr,tpr
+Random Forest,0.0,0.0
+Random Forest,0.0028,0.0155
+Random Forest,0.0097,0.031
+Random Forest,0.0195,0.0465
+Random Forest,0.0209,0.1008
+Random Forest,0.032,0.124
+Random Forest,0.0403,0.1395
+Random Forest,0.0556,0.1473
+Random Forest,0.0598,0.1705
+Random Forest,0.0682,0.186
+Random Forest,0.0723,0.2171
+Random Forest,0.0821,0.2326
+Random Forest,0.0876,0.2481
+Random Forest,0.1057,0.2636
+Random Forest,0.1127,0.2713
+Random Forest,0.1335,0.2868
+Random Forest,0.1516,0.3101
+Random Forest,0.1586,0.3256
+Random Forest,0.1613,0.3411
+Random Forest,0.1683,0.3721
+Random Forest,0.1905,0.3953
+Random Forest,0.1947,0.4031
+Random Forest,0.2184,0.4186
+Random Forest,0.2406,0.4419
+Random Forest,0.2462,0.4651
+Random Forest,0.2587,0.4806
+Random Forest,0.2768,0.4961
+Random Forest,0.2865,0.5194
+Random Forest,0.3046,0.5271
+Random Forest,0.3143,0.5426
+Random Forest,0.3268,0.5581
+Random Forest,0.3394,0.5736
+Random Forest,0.3421,0.5891
+Random Forest,0.3602,0.6047
+Random Forest,0.37,0.6202
+Random Forest,0.3797,0.6279
+Random Forest,0.3908,0.6512
+Random Forest,0.4033,0.6667
+Random Forest,0.4242,0.6822
+Random Forest,0.4451,0.6977
+Random Forest,0.4506,0.7209
+Random Forest,0.4618,0.7364
+Random Forest,0.5035,0.7442
+Random Forest,0.5174,0.7597
+Random Forest,0.5466,0.7752
+Random Forest,0.5508,0.7907
+Random Forest,0.5675,0.8062
+Random Forest,0.6175,0.8217
+Random Forest,0.6314,0.8372
+Random Forest,0.6384,0.845
+Random Forest,0.6759,0.8605
+Random Forest,0.7107,0.8837
+Random Forest,0.7149,0.8992
+Random Forest,0.7357,0.9147
+Random Forest,0.7816,0.9302
+Random Forest,0.8359,0.9457
+Random Forest,0.8999,0.9535
+Random Forest,0.9235,0.969
+Random Forest,0.9458,0.9845
+Random Forest,1.0,1.0
+XGBoost,0.0,0.0
+XGBoost,0.0014,0.031
+XGBoost,0.007,0.0388
+XGBoost,0.0139,0.0543
+XGBoost,0.0195,0.1008
+XGBoost,0.0306,0.124
+XGBoost,0.0487,0.1318
+XGBoost,0.0529,0.1473
+XGBoost,0.0556,0.1628
+XGBoost,0.0654,0.186
+XGBoost,0.0765,0.2016
+XGBoost,0.0779,0.2326
+XGBoost,0.0834,0.2636
+XGBoost,0.0974,0.2713
+XGBoost,0.1071,0.2868
+XGBoost,0.128,0.3101
+XGBoost,0.1544,0.3178
+XGBoost,0.1586,0.3411
+XGBoost,0.1599,0.3721
+XGBoost,0.1808,0.3876
+XGBoost,0.1892,0.3953
+XGBoost,0.1933,0.4109
+XGBoost,0.2114,0.4264
+XGBoost,0.217,0.4419
+XGBoost,0.2364,0.4574
+XGBoost,0.2406,0.4806
+XGBoost,0.2573,0.5039
+XGBoost,0.2615,0.5116
+XGBoost,0.2684,0.5271
+XGBoost,0.2726,0.5426
+XGBoost,0.3046,0.5504
+XGBoost,0.3227,0.5659
+XGBoost,0.331,0.5891
+XGBoost,0.3519,0.5969
+XGBoost,0.3713,0.6124
+XGBoost,0.3783,0.6279
+XGBoost,0.3908,0.6434
+XGBoost,0.4214,0.6512
+XGBoost,0.4367,0.6744
+XGBoost,0.4381,0.6899
+XGBoost,0.4604,0.6977
+XGBoost,0.4924,0.7132
+XGBoost,0.4965,0.7364
+XGBoost,0.4993,0.7597
+XGBoost,0.5202,0.7674
+XGBoost,0.5522,0.7984
+XGBoost,0.5716,0.8217
+XGBoost,0.5883,0.8295
+XGBoost,0.6509,0.845
+XGBoost,0.6551,0.8605
+XGBoost,0.662,0.876
+XGBoost,0.6718,0.8837
+XGBoost,0.6982,0.8992
+XGBoost,0.7149,0.9147
+XGBoost,0.765,0.9225
+XGBoost,0.8359,0.938
+XGBoost,0.8512,0.9612
+XGBoost,0.8985,0.9767
+XGBoost,0.9611,0.9845
+XGBoost,1.0,1.0
+Cox PH,0.0,0.0
+Cox PH,0.0014,0.031
+Cox PH,0.0097,0.0465
+Cox PH,0.0139,0.062
+Cox PH,0.0223,0.093
+Cox PH,0.0292,0.1008
+Cox PH,0.0445,0.1163
+Cox PH,0.0459,0.1318
+Cox PH,0.0515,0.1473
+Cox PH,0.0556,0.1628
+Cox PH,0.0723,0.1783
+Cox PH,0.0737,0.2093
+Cox PH,0.0904,0.2558
+Cox PH,0.0987,0.2636
+Cox PH,0.1029,0.2868
+Cox PH,0.1071,0.3023
+Cox PH,0.1099,0.3178
+Cox PH,0.1252,0.3256
+Cox PH,0.1363,0.3411
+Cox PH,0.1377,0.3721
+Cox PH,0.1627,0.3953
+Cox PH,0.1752,0.4031
+Cox PH,0.1892,0.4264
+Cox PH,0.2003,0.4574
+Cox PH,0.217,0.4729
+Cox PH,0.2211,0.4806
+Cox PH,0.2323,0.4961
+Cox PH,0.2337,0.5116
+Cox PH,0.2531,0.5271
+Cox PH,0.2601,0.5349
+Cox PH,0.2698,0.5504
+Cox PH,0.2768,0.5659
+Cox PH,0.2879,0.5814
+Cox PH,0.3115,0.6124
+Cox PH,0.3449,0.6357
+Cox PH,0.3561,0.6512
+Cox PH,0.3853,0.6667
+Cox PH,0.395,0.6744
+Cox PH,0.4047,0.6899
+Cox PH,0.4228,0.7054
+Cox PH,0.427,0.7209
+Cox PH,0.4339,0.7287
+Cox PH,0.4506,0.7442
+Cox PH,0.4548,0.7597
+Cox PH,0.459,0.7829
+Cox PH,0.4896,0.7907
+Cox PH,0.5257,0.814
+Cox PH,0.5688,0.8295
+Cox PH,0.5772,0.845
+Cox PH,0.6259,0.8527
+Cox PH,0.6565,0.8682
+Cox PH,0.6648,0.8837
+Cox PH,0.6885,0.8992
+Cox PH,0.7079,0.907
+Cox PH,0.8039,0.9302
+Cox PH,0.8081,0.9457
+Cox PH,0.8345,0.9612
+Cox PH,0.8526,0.969
+Cox PH,0.9388,0.9845
+Cox PH,1.0,1.0
+XGBoost-Cox,0.0,0.0
+XGBoost-Cox,0.0028,0.0155
+XGBoost-Cox,0.0097,0.0465
+XGBoost-Cox,0.0111,0.062
+XGBoost-Cox,0.0181,0.0775
+XGBoost-Cox,0.0223,0.093
+XGBoost-Cox,0.0348,0.1008
+XGBoost-Cox,0.0403,0.1163
+XGBoost-Cox,0.0445,0.1395
+XGBoost-Cox,0.0473,0.155
+XGBoost-Cox,0.0515,0.1705
+XGBoost-Cox,0.057,0.1938
+XGBoost-Cox,0.0723,0.2016
+XGBoost-Cox,0.0765,0.2171
+XGBoost-Cox,0.0807,0.2481
+XGBoost-Cox,0.0862,0.2636
+XGBoost-Cox,0.0987,0.2946
+XGBoost-Cox,0.1113,0.3023
+XGBoost-Cox,0.1182,0.3178
+XGBoost-Cox,0.1307,0.3566
+XGBoost-Cox,0.1377,0.3721
+XGBoost-Cox,0.1488,0.3876
+XGBoost-Cox,0.1627,0.4031
+XGBoost-Cox,0.1864,0.4264
+XGBoost-Cox,0.2058,0.4419
+XGBoost-Cox,0.2323,0.4574
+XGBoost-Cox,0.2364,0.4729
+XGBoost-Cox,0.2462,0.5039
+XGBoost-Cox,0.2531,0.5194
+XGBoost-Cox,0.2615,0.5271
+XGBoost-Cox,0.2726,0.5426
+XGBoost-Cox,0.274,0.5581
+XGBoost-Cox,0.2879,0.5814
+XGBoost-Cox,0.3018,0.5969
+XGBoost-Cox,0.3115,0.6047
+XGBoost-Cox,0.3324,0.6357
+XGBoost-Cox,0.3825,0.6512
+XGBoost-Cox,0.3866,0.6667
+XGBoost-Cox,0.3978,0.6977
+XGBoost-Cox,0.4186,0.7132
+XGBoost-Cox,0.4228,0.7209
+XGBoost-Cox,0.427,0.7442
+XGBoost-Cox,0.4409,0.7597
+XGBoost-Cox,0.4465,0.7752
+XGBoost-Cox,0.4659,0.7907
+XGBoost-Cox,0.4729,0.7984
+XGBoost-Cox,0.4826,0.814
+XGBoost-Cox,0.5452,0.8295
+XGBoost-Cox,0.5772,0.845
+XGBoost-Cox,0.6078,0.8605
+XGBoost-Cox,0.6412,0.876
+XGBoost-Cox,0.6662,0.8837
+XGBoost-Cox,0.7274,0.8992
+XGBoost-Cox,0.7677,0.9147
+XGBoost-Cox,0.7691,0.9302
+XGBoost-Cox,0.8039,0.9457
+XGBoost-Cox,0.8331,0.9612
+XGBoost-Cox,0.8693,0.969
+XGBoost-Cox,0.9305,0.9845
+XGBoost-Cox,1.0,1.0
+LSTM-Attention-Cox,0.0,0.0
+LSTM-Attention-Cox,0.0083,0.0233
+LSTM-Attention-Cox,0.0139,0.0388
+LSTM-Attention-Cox,0.0181,0.0543
+LSTM-Attention-Cox,0.025,0.093
+LSTM-Attention-Cox,0.0306,0.1085
+LSTM-Attention-Cox,0.0431,0.1318
+LSTM-Attention-Cox,0.0501,0.1395
+LSTM-Attention-Cox,0.064,0.155
+LSTM-Attention-Cox,0.0695,0.1705
+LSTM-Attention-Cox,0.0751,0.186
+LSTM-Attention-Cox,0.096,0.2171
+LSTM-Attention-Cox,0.1057,0.2326
+LSTM-Attention-Cox,0.1182,0.2636
+LSTM-Attention-Cox,0.128,0.2713
+LSTM-Attention-Cox,0.1433,0.2868
+LSTM-Attention-Cox,0.1599,0.3023
+LSTM-Attention-Cox,0.1613,0.3178
+LSTM-Attention-Cox,0.1752,0.3411
+LSTM-Attention-Cox,0.1892,0.3566
+LSTM-Attention-Cox,0.2086,0.3643
+LSTM-Attention-Cox,0.2114,0.3798
+LSTM-Attention-Cox,0.2225,0.3953
+LSTM-Attention-Cox,0.235,0.4186
+LSTM-Attention-Cox,0.242,0.4341
+LSTM-Attention-Cox,0.2573,0.4496
+LSTM-Attention-Cox,0.2643,0.4651
+LSTM-Attention-Cox,0.2712,0.4729
+LSTM-Attention-Cox,0.3213,0.4884
+LSTM-Attention-Cox,0.3324,0.5039
+LSTM-Attention-Cox,0.3394,0.5194
+LSTM-Attention-Cox,0.3463,0.5349
+LSTM-Attention-Cox,0.3964,0.5504
+LSTM-Attention-Cox,0.4047,0.5581
+LSTM-Attention-Cox,0.4186,0.5814
+LSTM-Attention-Cox,0.4701,0.5969
+LSTM-Attention-Cox,0.4979,0.6202
+LSTM-Attention-Cox,0.5049,0.6357
+LSTM-Attention-Cox,0.5424,0.6589
+LSTM-Attention-Cox,0.5522,0.6822
+LSTM-Attention-Cox,0.5688,0.6977
+LSTM-Attention-Cox,0.5841,0.7209
+LSTM-Attention-Cox,0.6008,0.7364
+LSTM-Attention-Cox,0.6203,0.7519
+LSTM-Attention-Cox,0.6453,0.7674
+LSTM-Attention-Cox,0.6495,0.7829
+LSTM-Attention-Cox,0.6759,0.7984
+LSTM-Attention-Cox,0.6885,0.8217
+LSTM-Attention-Cox,0.7274,0.8372
+LSTM-Attention-Cox,0.7608,0.8527
+LSTM-Attention-Cox,0.7803,0.8682
+LSTM-Attention-Cox,0.7914,0.8837
+LSTM-Attention-Cox,0.815,0.8992
+LSTM-Attention-Cox,0.8248,0.907
+LSTM-Attention-Cox,0.8345,0.9225
+LSTM-Attention-Cox,0.8665,0.938
+LSTM-Attention-Cox,0.8776,0.9535
+LSTM-Attention-Cox,0.9305,0.969
+LSTM-Attention-Cox,0.9583,0.9845
+LSTM-Attention-Cox,1.0,1.0

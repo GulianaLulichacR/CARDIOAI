@@ -26,6 +26,7 @@ from .routers import (
     models,
     patients,
     predictions,
+    public_datasets,
     reports,
     system,
     users,
@@ -40,8 +41,25 @@ FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    from .database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        from .ml_engine import recover_orphaned_runs
+
+        recovered = recover_orphaned_runs(db)
+        if recovered:
+            logger.warning(
+                json.dumps({"event": "orphaned_runs_recovered", "count": recovered})
+            )
+    except Exception:
+        db.rollback()
+        logger.error(
+            json.dumps({"event": "orphan_recovery_failed", "error": traceback.format_exc()[-500:]})
+        )
+    finally:
+        db.close()
     if settings.seed_demo_data:
-        from .database import SessionLocal
         from .seed import seed_all
 
         db = SessionLocal()
@@ -146,13 +164,13 @@ async def unhandled_handler(request: Request, exc: Exception):
 
 
 API = settings.api_prefix
-for module in (auth, users, patients, datasets, models, predictions, dashboard, geo, reports, audit, alerts, assistant, system):
+for module in (auth, users, patients, datasets, public_datasets, models, predictions, dashboard, geo, reports, audit, alerts, assistant, system):
     app.include_router(module.router, prefix=API)
 
 
 @app.get("/api", include_in_schema=False)
 def api_root():
-    return {"app": settings.app_name, "docs": "/api/docs", "health": "/api/health"}
+    return {"app": settings.app_name, "docs": "/api/docs", "health": "/api/system/health"}
 
 
 @app.get("/{full_path:path}", include_in_schema=False)

@@ -138,9 +138,9 @@ def _platform_answer(question: str, context: dict[str, Any]) -> str | None:
             f"{m['name']}: AUC {m['auc']}" for m in context["models"] if m["auc"] is not None
         )
         return (
-            f"El modelo activo es {active['name']} ({active['algorithm']}), con AUC-ROC temporal "
-            f"{active['auc']} y F1 {active['f1']} en el conjunto retenido. Horizonte: "
-            f"{active['horizon']} años. {'Es un modelo entrenado con datos sintéticos de demostración.' if active['demo'] else ''} "
+            f"El modelo activo es {active['name']} ({active['algorithm']}), con AUC-ROC en el "
+            f"holdout de prueba {active['auc']} y F1 {active['f1']} en el conjunto retenido. Horizonte: "
+            f"{active['horizon']} años. {'Es un modelo entrenado con datos sintéticos de demostración.' if active['demo'] else 'Es un modelo entrenado con una cohorte pública observada.'} "
             f"Comparación de modelos listos: {comparison or 'sin métricas disponibles'}. "
             f"Hay {context['models_ready']} modelos entrenados en total."
         )
@@ -155,8 +155,10 @@ def _platform_answer(question: str, context: dict[str, Any]) -> str | None:
     if any(term in q for term in ["paciente", "registro", "cohorte", "datos"]):
         return (
             f"La base contiene {context['patients']} registros de pacientes activos y "
-            f"{context['predictions']} predicciones. El dataset de demostración es sintético y está "
-            "etiquetado como tal; no debe presentarse como evidencia clínica."
+            f"{context['predictions']} predicciones. El dataset sintético de demostración está "
+            "etiquetado como tal; el dataset público observado se registra con su procedencia, "
+            "licencia y huella SHA-256. Ninguno de los dos debe presentarse como evidencia clínica "
+            "de beneficio."
         )
     return None
 

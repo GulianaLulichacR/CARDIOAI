@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -74,6 +74,8 @@ export default function ModelsPage() {
   const [training, setTraining] = useState(false);
   const [detail, setDetail] = useState<ModelRun | null>(null);
   const [tab, setTab] = useState<"performance" | "validation" | "calibration" | "importance" | "params">("performance");
+  const detailRef = useRef(detail);
+  detailRef.current = detail;
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -85,8 +87,9 @@ export default function ModelsPage() {
       setModels(list.items);
       setCompare(comparison);
       setError("");
-      if (detail) {
-        const refreshed = list.items.find((item) => item.id === detail.id);
+      const current = detailRef.current;
+      if (current) {
+        const refreshed = list.items.find((item) => item.id === current.id);
         if (refreshed) setDetail(refreshed);
       }
     } catch (err) {
@@ -94,7 +97,7 @@ export default function ModelsPage() {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [detail]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -165,7 +168,7 @@ export default function ModelsPage() {
       <PageHeader
         eyebrow="Machine learning"
         title="Modelos y MLOps"
-        description="Entrenamiento de cinco enfoques, comparación por validación temporal y geográfica, selección del modelo activo y trazabilidad de hiperparámetros."
+        description="Entrenamiento de cinco enfoques, comparación en un holdout honesto, selección del modelo activo por validación interna y trazabilidad de hiperparámetros."
         actions={
           <>
             <button className="btn-ghost" onClick={() => load()}>
@@ -183,8 +186,9 @@ export default function ModelsPage() {
       />
 
       <DemoNotice>
-        Los modelos se entrenan con la cohorte <strong>sintética</strong>. Las métricas son demostrativas y no
-        evidencia clínica. La selección automática del modelo activo usa AUC temporal.
+        Las métricas corresponden al dataset seleccionado y se calculan en un holdout no usado para ajustar.
+        La selección automática del modelo activo usa validación interna o validación cruzada, nunca el holdout
+        de prueba. Los resultados no constituyen evidencia clínica.
       </DemoNotice>
 
       {error && <ErrorBanner message={error} onRetry={() => load()} />}
@@ -203,9 +207,9 @@ export default function ModelsPage() {
           <p className="mt-1 text-xs text-slate-500">{active ? active.algorithm : "Entrene los modelos para inferir"}</p>
         </div>
         <div className="card p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">AUC-ROC temporal</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">AUC-ROC (holdout)</p>
           <p className="mt-1 text-2xl font-bold text-navy-900">{active?.summary.roc_auc?.toFixed(3) ?? "—"}</p>
-          <p className="mt-1 text-xs text-slate-500">Conjunto retenido por cohorte</p>
+          <p className="mt-1 text-xs text-slate-500">Conjunto de prueba no usado para ajustar</p>
         </div>
         <div className="card p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Modelos listos</p>
@@ -325,7 +329,7 @@ export default function ModelsPage() {
                 <thead>
                   <tr>
                     <th>Algoritmo</th>
-                    <th>AUC temporal</th>
+                    <th>AUC holdout</th>
                     <th>AUC geográfica</th>
                     <th>Sensibilidad</th>
                     <th>Especificidad</th>
@@ -387,9 +391,9 @@ export default function ModelsPage() {
         <h2 className="text-sm font-bold text-navy-900">Protocolo de validación</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           {[
-            ["Temporal", "Cohortes más recientes se reservan como prueba. Optuna y el umbral se calculan solo en entrenamiento/validación interna."],
-            ["Geográfica", "Una región con tamaño suficiente se retiene por completo para evaluar transporte territorial."],
-            ["Métrica principal", "AUC-ROC temporal, con sensibilidad, especificidad, F1, MCC, Brier, calibración y DCA como apoyo."],
+            ["Partición honesta", "Temporal solo si existe un año de cohorte informativo; si no, holdout aleatorio estratificado declarado como tal. Nunca se etiqueta un split aleatorio como temporal."],
+            ["Sin fuga de información", "Optuna y el umbral se calculan solo en entrenamiento/validación interna; el holdout se usa únicamente para el reporte final. La selección del modelo activo usa validación interna o CV."],
+            ["Métrica principal", "AUC-ROC en el holdout, con sensibilidad, especificidad, F1, MCC, Brier, calibración, Hosmer-Lemeshow y DCA como apoyo."],
           ].map(([title, text]) => (
             <div key={title} className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
               <p className="text-xs font-bold text-navy-900">{title}</p>
@@ -398,8 +402,8 @@ export default function ModelsPage() {
           ))}
         </div>
         <p className="mt-3 text-[10px] leading-relaxed text-slate-400">
-          La validación es interna sobre datos sintéticos. No sustituye una validación externa, una recalibración
-          local ni una evaluación de equidad con datos reales.
+          La validación es interna o en un holdout del mismo dataset. No sustituye una validación externa, una
+          recalibración local ni una evaluación de equidad con datos de otra población.
         </p>
       </section>
 
@@ -446,8 +450,8 @@ export default function ModelsPage() {
             <ul className="mt-2 space-y-1">
               <li>Random Forest y XGBoost (clasificación a 10 años).</li>
               <li>Cox PH, XGBoost-Cox y LSTM-Attention-Cox (supervivencia).</li>
-              <li>Validación temporal y geográfica; umbral fijado sin usar los conjuntos retenidos.</li>
-              <li>El mejor AUC temporal se activa automáticamente al finalizar.</li>
+              <li>Validación temporal cuando el dataset aporta año de cohorte; en caso contrario, holdout aleatorio estratificado.</li>
+              <li>El mejor modelo por validación interna/CV se activa automáticamente al finalizar.</li>
             </ul>
           </div>
           {!algorithms.find((algorithm) => algorithm.key === "lstm_attention_cox")?.available && (
@@ -538,7 +542,7 @@ export default function ModelsPage() {
             {tab === "performance" && (
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-slate-100 p-3">
-                  <p className="mb-2 text-xs font-bold text-navy-900">Curva ROC · test temporal</p>
+                  <p className="mb-2 text-xs font-bold text-navy-900">Curva ROC · holdout</p>
                   {bestDetail.roc.length > 1 ? (
                     <div className="h-60">
                       <ResponsiveContainer width="100%" height="100%">
@@ -592,11 +596,13 @@ export default function ModelsPage() {
                   <div className="rounded-lg border border-slate-100 p-4">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-accent-600" />
-                      <p className="text-xs font-bold text-navy-900">Test temporal</p>
+                      <p className="text-xs font-bold text-navy-900">Holdout de prueba</p>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-500">
-                      Cohorte desde {bestDetail.metrics.temporal?.cutoff_year ?? "—"} · n ={" "}
-                      {formatNumber(bestDetail.metrics.temporal?.n)}
+                      {bestDetail.metrics.temporal?.split_type === "temporal"
+                        ? `Cohorte desde ${bestDetail.metrics.temporal?.cutoff_year ?? "—"}`
+                        : "Partición aleatoria estratificada"}{" "}
+                      · n = {formatNumber(bestDetail.metrics.temporal?.n)}
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
                       <p>AUC: <strong>{bestDetail.temporal.roc_auc?.toFixed?.(3) ?? "—"}</strong></p>
@@ -608,12 +614,17 @@ export default function ModelsPage() {
                   <div className="rounded-lg border border-slate-100 p-4">
                     <div className="flex items-center gap-2">
                       <Gauge className="h-4 w-4 text-accent-600" />
-                      <p className="text-xs font-bold text-navy-900">Test geográfico</p>
+                      <p className="text-xs font-bold text-navy-900">Retención geográfica</p>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-500">
                       Región retenida: {bestDetail.metrics.geographic?.region ?? "no aplica"} · n ={" "}
                       {formatNumber(bestDetail.metrics.geographic?.n)}
                     </p>
+                    {!bestDetail.metrics.geographic?.region && (
+                      <p className="mt-2 text-[10px] text-amber-700">
+                        {bestDetail.metrics.geographic?.note ?? "No disponible para este dataset."}
+                      </p>
+                    )}
                     <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
                       <p>AUC: <strong>{bestDetail.geographic.roc_auc?.toFixed?.(3) ?? "—"}</strong></p>
                       <p>F1: <strong>{bestDetail.geographic.f1?.toFixed?.(3) ?? "—"}</strong></p>
