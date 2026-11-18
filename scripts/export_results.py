@@ -284,7 +284,13 @@ def main() -> None:
             for item in disc.get("calibration") or []:
                 calibration_curve_rows.append({"model": label, **item})
             for item in disc.get("dca") or []:
-                dca_rows.append({"model": label, **item})
+                dca_rows.append({
+                    "model": label,
+                    "threshold": item.get("threshold"),
+                    "net_benefit": item.get("model"),
+                    "treat_all": item.get("treat_all"),
+                    "treat_none": item.get("treat_none", 0.0),
+                })
 
         comparison_df = pd.DataFrame(comparison)
         comparison_df.to_csv(RESULTS_DIR / f"model_comparison{suffix}.csv", index=False)
@@ -375,14 +381,15 @@ def _plot_dca(rows: list[dict], suffix: str) -> None:
         return
     fig, ax = plt.subplots(figsize=(7, 5))
     for model, grp in df.groupby("model"):
-        ax.plot(grp["threshold"], grp["model"], label=model, linewidth=1.6)
-    first = next(df.groupby("model"))
-    ax.plot(first[1]["threshold"], first[1]["treat_all"], "--", color="grey", label="Tratar a todos", linewidth=1)
-    ax.axhline(0, color="black", linewidth=0.8)
+        ax.plot(grp["threshold"], grp["net_benefit"], label=model, linewidth=1.6)
+    first_name, first_df = next(iter(df.groupby("model")))
+    ax.plot(first_df["threshold"], first_df["treat_all"], "--", color="grey", label="Tratar a todos", linewidth=1)
+    ax.axhline(0, color="black", linewidth=0.8, linestyle=":")
     ax.set_xlabel("Probabilidad umbral")
     ax.set_ylabel("Beneficio neto")
-    ax.set_title("Análisis de decisión clínica")
-    ax.legend(frameon=False, fontsize=8)
+    ax.set_title("Análisis de decisión clínica (DCA)")
+    ax.set_xlim(0, 0.40)
+    ax.legend(frameon=True, fontsize=8)
     fig.tight_layout()
     fig.savefig(FIGURES_DIR / f"fig_dca{suffix}.png", dpi=300)
     plt.close(fig)
@@ -415,7 +422,13 @@ def _plot_importance(runs: list[ModelRun], suffix: str) -> None:
     rows = []
     for run in runs:
         label = ALGO_LABELS.get(run.algorithm, run.algorithm)
-        for item in run.feature_importance or []:
+        feat_imp = run.feature_importance
+        if isinstance(feat_imp, str):
+            try:
+                feat_imp = json.loads(feat_imp)
+            except Exception:
+                feat_imp = []
+        for item in feat_imp or []:
             rows.append({
                 "model": label,
                 "feature": item.get("label") or item.get("feature"),

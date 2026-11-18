@@ -512,6 +512,15 @@ para(
     "modelos, aunque la magnitud del beneficio incremental frente a «tratar a todos» fue modesta. Los umbrales de "
     "riesgo de la aplicación (bajo < 0,10, alto ≥ 0,25) son operativos y requieren validación clínica externa."
 )
+doc.add_paragraph()
+p = doc.add_paragraph()
+r = p.add_run("Figura 5 · Curvas de Decisión Clínica (DCA) y Beneficio Neto en el conjunto de prueba.")
+r.bold = True
+r.font.size = Pt(10)
+doc.add_picture(str(RESULTS / "figures" / "fig_dca.png"), width=Inches(5.0))
+doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+para("Beneficio neto clínico de cada modelo frente a las estrategias universales de tratar a todos (línea gris punteada) o no tratar a ninguno en función de la probabilidad umbral de intervención médica (pt).", size=10, italic=True)
+doc.add_paragraph()
 para(
     "El análisis de subgrupos (Tabla 7) mostró variación de la discriminación por sexo y edad. La AUC fue "
     "generalmente similar entre mujeres y hombres, pero con intervalos amplios en subgrupos pequeños (por ejemplo, "
@@ -538,6 +547,15 @@ add_table(
     caption="Tabla 7 · Métricas de subgrupo en el holdout de prueba (Framingham).",
     note="Solo se muestran subgrupos con n ≥ 20. Las métricas se calcularon sobre el holdout de prueba sin usarlas para ajuste del modelo.",
 )
+doc.add_paragraph()
+p = doc.add_paragraph()
+r = p.add_run("Figura 6 · Importancia relativa de factores de riesgo por arquitectura de modelo.")
+r.bold = True
+r.font.size = Pt(10)
+doc.add_picture(str(RESULTS / "figures" / "fig_importance.png"), width=Inches(5.5))
+doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+para("Distribución normalizada de la importancia predictiva de las variables basales clínicas y conductuales en la cohorte Framingham.", size=10, italic=True)
+doc.add_paragraph()
 
 h2("3.6. Respuesta principal, integración socioambiental y validez")
 para(
