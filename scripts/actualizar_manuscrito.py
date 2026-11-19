@@ -176,22 +176,19 @@ para(
     "determinantes sociales y ambientales podrían aportar información contextual cuya medición y "
     "transportabilidad son heterogéneas. El objetivo fue definir y documentar un protocolo para evaluar la "
     "integración de variables cardiometabólicas, conductuales y socioambientales en la plataforma CARDIOAI, "
-    "delimitando con transparencia el alcance de su implementación. Se realizó una inspección técnica del "
-    "código y un perfil descriptivo del dataset público Framingham Heart Study (4.240 registros, 29 columnas "
-    "tras adaptación, 644 eventos, prevalencia 15,19 %). El protocolo contempló cinco familias de modelos, "
-    "partición honesta (aleatoria estratificada al no existir año de cohorte en Framingham) y métricas de "
-    "discriminación, calibración y utilidad. La cohorte generó 644 eventos (15,19 %); 848 observaciones de "
-    "prueba de holdout tuvieron etiqueta binaria evaluable a diez años. XGBoost-Cox alcanzó la mayor "
+    "y delimitar su alcance. Se realizó una inspección técnica del código y un perfil descriptivo del dataset "
+    "público Framingham Heart Study (4.240 registros, 29 columnas tras adaptación, 644 eventos, prevalencia "
+    "15,19 %). El protocolo contempló cinco familias de modelos, partición honesta (aleatoria estratificada, "
+    "sin año de cohorte en Framingham) y métricas de discriminación, calibración y utilidad. El holdout de "
+    "prueba incluyó 848 observaciones con etiqueta binaria evaluable a diez años. XGBoost-Cox obtuvo la mayor "
     "AUC-ROC de prueba (0,703; IC 95 %: 0,658–0,754), seguido de Cox PH (0,700; 0,655–0,752) y Random Forest "
-    "(0,672; 0,625–0,720). La optimización con Optuna y validación interna arrojó AUC de selección entre "
-    "0,687 y 0,725, sin que su orden coincidiera con el del holdout. Las diferencias entre modelos fueron "
-    "pequeñas respecto de la incertidumbre del "
-    "intervalo de bootstrap y se contrastaron con la prueba de DeLong pareada; ninguna diferencia fue lo "
-    "suficientemente grande y precisa como para afirmar superioridad general. La plataforma mostró una "
-    "arquitectura capaz de integrar variables clínicas y contextuales; sin embargo, Framingham no contiene "
-    "PM2.5, espacio verde, ingreso, actividad física ni visitas longitudinales, por lo que el módulo "
-    "socioambiental no pudo validarse con esta fuente y los resultados no constituyen evidencia clínica, "
-    "requiriendo validación externa prospectiva con datos observados."
+    "(0,672; 0,625–0,720). La optimización con Optuna y validación interna arrojó AUC de selección entre 0,687 "
+    "y 0,725, sin coincidir con el orden del holdout. Las diferencias entre modelos fueron pequeñas frente a "
+    "la incertidumbre bootstrap y no permitieron afirmar superioridad general tras la prueba de DeLong pareada. "
+    "La plataforma mostró una arquitectura capaz de integrar variables clínicas y contextuales; sin embargo, "
+    "Framingham no contiene PM2.5, espacio verde, ingreso, actividad física ni visitas longitudinales, por lo "
+    "que el módulo socioambiental no pudo validarse y los resultados no constituyen evidencia clínica; se "
+    "requiere validación externa prospectiva."
 )
 para("Palabras clave: aprendizaje automático, calibración, Framingham, determinantes sociales de la salud, validación externa.", italic=True, size=10)
 
@@ -425,7 +422,7 @@ para(
 para(
     "Como Framingham no contiene año de cohorte informativo, la partición fue un holdout aleatorio estratificado "
     "80/20 (no temporal, declarado como tal): 3.392 registros de entrenamiento y 848 de prueba, con 129 eventos en "
-    "prueba (prevalencia 15,21 %). No se aplicó retención geográfica porque Framingham es una sola región "
+    "prueba (prevalencia 15,21 %; Figura 2). No se aplicó retención geográfica porque Framingham es una sola región "
     "(Massachusetts, EE. UU.). El C-index no es informativo por el seguimiento administrativo fijo de 10 años."
 )
 add_table(
@@ -453,6 +450,11 @@ p = doc.add_paragraph()
 r = p.add_run("Figura 2 · Flujo de datos y particiones del protocolo (Framingham).")
 r.bold = True
 r.font.size = Pt(10)
+p.paragraph_format.keep_with_next = True
+doc.add_picture(str(RESULTS / "figures" / "fig_flujo_protocolo.png"), width=Inches(5.9))
+doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+doc.paragraphs[-1].paragraph_format.keep_with_next = True
+doc.paragraphs[-1].paragraph_format.keep_together = True
 para(
     "Holdout aleatorio estratificado 80/20: 3.392 registros de entrenamiento (79,3 %) y 848 de prueba (20,7 %). "
     "No se aplicó retención geográfica (una sola región). El desenlace es administrativo a 10 años; no hay "
@@ -542,8 +544,11 @@ p = doc.add_paragraph()
 r = p.add_run("Figura 3 · Curvas ROC en el conjunto de prueba (Framingham).")
 r.bold = True
 r.font.size = Pt(10)
+p.paragraph_format.keep_with_next = True
 doc.add_picture(str(RESULTS / "figures" / "fig_roc.png"), width=Inches(5.0))
 doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+doc.paragraphs[-1].paragraph_format.keep_with_next = True
+doc.paragraphs[-1].paragraph_format.keep_together = True
 para("Las curvas se generaron a partir de las probabilidades reales de prueba de cada modelo. La línea diagonal representa el clasificador aleatorio (AUC = 0,5).", size=10, italic=True)
 doc.add_paragraph()
 
@@ -568,8 +573,11 @@ p = doc.add_paragraph()
 r = p.add_run("Figura 4 · Curva de calibración por deciles (Framingham).")
 r.bold = True
 r.font.size = Pt(10)
+p.paragraph_format.keep_with_next = True
 doc.add_picture(str(RESULTS / "figures" / "fig_calibration.png"), width=Inches(5.0))
 doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+doc.paragraphs[-1].paragraph_format.keep_with_next = True
+doc.paragraphs[-1].paragraph_format.keep_together = True
 para("Cada punto representa un decil de probabilidad predicha; la línea diagonal es la calibración perfecta.", size=10, italic=True)
 doc.add_paragraph()
 
@@ -601,8 +609,11 @@ p = doc.add_paragraph()
 r = p.add_run("Figura 5 · Curvas de Decisión Clínica (DCA) y Beneficio Neto en el conjunto de prueba.")
 r.bold = True
 r.font.size = Pt(10)
+p.paragraph_format.keep_with_next = True
 doc.add_picture(str(RESULTS / "figures" / "fig_dca.png"), width=Inches(5.0))
 doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+doc.paragraphs[-1].paragraph_format.keep_with_next = True
+doc.paragraphs[-1].paragraph_format.keep_together = True
 para("Beneficio neto clínico de cada modelo frente a las estrategias universales de tratar a todos (línea gris punteada) o no tratar a ninguno en función de la probabilidad umbral de intervención médica (pt).", size=10, italic=True)
 doc.add_paragraph()
 para(
@@ -636,8 +647,11 @@ p = doc.add_paragraph()
 r = p.add_run("Figura 6 · Importancia relativa de factores de riesgo por arquitectura de modelo.")
 r.bold = True
 r.font.size = Pt(10)
+p.paragraph_format.keep_with_next = True
 doc.add_picture(str(RESULTS / "figures" / "fig_importance.png"), width=Inches(5.5))
 doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+doc.paragraphs[-1].paragraph_format.keep_with_next = True
+doc.paragraphs[-1].paragraph_format.keep_together = True
 para("Distribución normalizada de la importancia predictiva de las variables basales clínicas y conductuales en la cohorte Framingham.", size=10, italic=True)
 doc.add_paragraph()
 
