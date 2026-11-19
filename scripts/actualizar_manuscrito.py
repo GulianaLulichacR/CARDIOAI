@@ -51,6 +51,10 @@ def fnum(v, digits=3):
         return str(v)
 
 
+def es(v, digits=3):
+    """Formatea con coma decimal para el cuerpo del manuscrito."""
+    return fnum(v, digits).replace(".", ",")
+
 def ci(model):
     r = comparison.get(model, {})
     low, high = r.get("auc_ci_low"), r.get("auc_ci_high")
@@ -179,7 +183,9 @@ para(
     "discriminación, calibración y utilidad. La cohorte generó 644 eventos (15,19 %); 848 observaciones de "
     "prueba de holdout tuvieron etiqueta binaria evaluable a diez años. XGBoost-Cox alcanzó la mayor "
     "AUC-ROC de prueba (0,703; IC 95 %: 0,658–0,754), seguido de Cox PH (0,700; 0,655–0,752) y Random Forest "
-    "(0,672; 0,625–0,720). Las diferencias entre modelos fueron pequeñas respecto de la incertidumbre del "
+    "(0,672; 0,625–0,720). La optimización con Optuna y validación interna arrojó AUC de selección entre "
+    "0,687 y 0,725, sin que su orden coincidiera con el del holdout. Las diferencias entre modelos fueron "
+    "pequeñas respecto de la incertidumbre del "
     "intervalo de bootstrap y se contrastaron con la prueba de DeLong pareada; ninguna diferencia fue lo "
     "suficientemente grande y precisa como para afirmar superioridad general. La plataforma mostró una "
     "arquitectura capaz de integrar variables clínicas y contextuales; sin embargo, Framingham no contiene "
@@ -204,7 +210,9 @@ para(
     "discrimination, calibration, and utility. The cohort generated 644 events (15.19%); 848 holdout-test "
     "observations had an evaluable 10-year binary label. XGBoost-Cox achieved the highest test AUC-ROC "
     "(0.703; 95% CI: 0.658–0.754), followed by Cox PH (0.700; 0.655–0.752) and Random Forest (0.672; "
-    "0.625–0.720). Differences between models were small relative to bootstrap uncertainty and were compared "
+    "0.625–0.720). Optuna optimization with internal validation yielded selection AUCs between 0.687 and "
+    "0.725, and their ranking did not match that of the holdout. Differences between models were small "
+    "relative to bootstrap uncertainty and were compared "
     "with paired DeLong tests; no difference was large and precise enough to claim general superiority. The "
     "platform showed an architecture able to integrate clinical and contextual variables; however, Framingham "
     "does not contain PM2.5, green space, income, physical activity, or longitudinal visits, so the "
@@ -337,13 +345,37 @@ add_table(
     caption="Tabla 1 · Variables disponibles y su operacionalización en CARDIOAI (Framingham).",
     note="PAS/PAD = presión arterial sistólica/diastólica. Las concentraciones de lípidos y glucosa se expresan en unidades del Sistema Internacional (mmol/L); el archivo original las registra en mg/dL.",
 )
-h2("2.5. Preprocesamiento, modelos y particiones")
+h2("2.5. Preprocesamiento, modelos, optimización y particiones")
 para(
-    "La implementación dispone de cinco enfoques (Tabla 2). El preprocesamiento imputa los valores numéricos con "
-    "la mediana y codifica las variables categóricas; el flujo de supervivencia estandariza las variables "
-    "numéricas. Optuna puede optimizar los hiperparámetros dentro del conjunto de entrenamiento y un subconjunto "
-    "interno selecciona el umbral de clasificación, mientras que el conjunto de prueba retenido se reserva para "
-    "la evaluación. La validación cruzada agrupada se ejecuta en el flujo de modelos de árboles."
+    "La implementación dispone de cinco enfoques (Tabla 2). El preprocesamiento imputa los valores "
+    "numéricos con la mediana, codifica las variables categóricas y estandariza las variables numéricas "
+    "en el flujo de supervivencia. La partición fue un holdout aleatorio estratificado 80/20: 3.392 "
+    "registros de entrenamiento (515 eventos) y 848 de prueba (129 eventos). Del entrenamiento se separó "
+    "un 20 % interno (679 registros, 103 eventos), utilizado para fijar el umbral de clasificación y para "
+    "la validación interna de los modelos de supervivencia, híbridos y profundo."
+)
+para(
+    "La optimización de hiperparámetros se ejecutó con Optuna (muestreador TPE, semilla 42; poda mediana en "
+    "los modelos de árboles). En Random Forest y XGBoost se usaron los 2.713 registros restantes del "
+    "entrenamiento y se evaluaron ocho configuraciones mediante validación cruzada estratificada de tres "
+    "folds, con la AUC-ROC media como objetivo; en XGBoost-Cox se usó la totalidad de los 3.392 registros y "
+    "se maximizó la correlación entre el log-hazard predicho y el log-hazard fuera de bolsa de Cox, también "
+    "con ocho configuraciones y un límite de 120 s. Los rangos explorados fueron: Random Forest, 200–450 "
+    "árboles, profundidad 5–22, hoja mínima 1–8 y max_features ∈ {sqrt; 0,5}; XGBoost, 200–450 árboles, "
+    "profundidad 3–8, tasa de aprendizaje 0,02–0,20, subsample 0,7–1,0, colsample_bytree 0,6–1,0, "
+    "min_child_weight 1–6 y regularización L2 0,5–5,0; XGBoost-Cox, 200–400 árboles, profundidad 2–5, tasa "
+    "de aprendizaje 0,02–0,15, subsample 0,7–1,0, colsample_bytree 0,6–1,0 y regularización L2 1,0–6,0. "
+    "Cox PH usó una penalización fija de 0,08 y LSTM-Attention-Cox una arquitectura fija (24 unidades "
+    "ocultas, cuatro visitas, ocho épocas, optimizador Adam y decaimiento 1e-4), porque Framingham no "
+    "aporta visitas longitudinales."
+)
+para(
+    "El umbral de clasificación se seleccionó maximizando F1 en la validación interna, con candidatos "
+    "acotados al intervalo [0,01; 0,99], y se congeló antes de la prueba. Cada configuración final se "
+    "reentrenó con la totalidad de los 3.392 registros de entrenamiento y se evaluó una sola vez en el "
+    "holdout de 848 registros. La validación cruzada fue estratificada porque Framingham contiene una sola "
+    "región; el esquema agrupado por región se reserva para datasets multirregión. El holdout no se usó "
+    "para optimizar hiperparámetros ni para fijar el umbral."
 )
 add_table(
     ["Modelo", "Familia", "Entrada principal", "Papel comparativo"],
@@ -430,10 +462,62 @@ para(
 )
 doc.add_paragraph()
 
-h2("3.3. Discriminación en el holdout de prueba")
+h2("3.3. Optimización de hiperparámetros y selección interna")
+para(
+    "La selección se realizó sin acceso al holdout (Tabla 4). Random Forest obtuvo la mayor AUC de "
+    "selección (0,725; DE 0,026 entre tres folds) y XGBoost la segunda (0,723; DE 0,024), mientras que "
+    "Cox PH, XGBoost-Cox y LSTM-Attention-Cox alcanzaron 0,711, 0,708 y 0,687 en el 20 % interno de "
+    "validación. El orden no se conservó en la prueba: Random Forest pasó del primer puesto de selección "
+    "al cuarto de prueba (0,672) y XGBoost-Cox del cuarto al primero (0,703). Esta inversión indica que la "
+    "AUC interna —calculada con 103 eventos en la validación del 20 % o con tres folds sobre el "
+    "entrenamiento— tiene una precisión limitada para elegir entre arquitecturas y no debe interpretarse "
+    "como una garantía de rendimiento externo."
+)
+para(
+    "Los umbrales que maximizan F1 se fijaron entre 0,162 (Cox PH) y 0,229 (LSTM-Attention-Cox) antes de "
+    "evaluar el holdout (Tabla 4). El tiempo de entrenamiento y ajuste fue heterogéneo: 127,2 s en Random "
+    "Forest —450 árboles y búsqueda sobre tres folds—, 21,9 s en XGBoost, 8,4 s en LSTM-Attention-Cox, "
+    "6,4 s en XGBoost-Cox y 3,3 s en Cox PH. Las configuraciones finales y las huellas SHA-256 de los cinco "
+    "artefactos quedaron registradas en data/results/model_comparison.json."
+)
+final_params = {
+    "Random Forest": "450 árboles; profundidad 7; hoja mínima 4; max_features 0,5",
+    "XGBoost": "250 árboles; profundidad 3; η 0,020; subsample 0,731; colsample 0,810; λ 4,18",
+    "Cox PH": "Penalización 0,08; línea base Breslow",
+    "XGBoost-Cox": "300 árboles; profundidad 5; η 0,087; subsample 0,880; colsample 0,662; λ 1,78",
+    "LSTM-Attention-Cox": "24 unidades; 4 visitas; 8 épocas; Adam; decaimiento 1e-4",
+}
+sel_rows = []
+for _name in ["Random Forest", "XGBoost", "Cox PH", "XGBoost-Cox", "LSTM-Attention-Cox"]:
+    _r = comparison.get(_name, {})
+    _auc = es(_r.get("selection_auc"), 3)
+    if _r.get("cv_auc_std") not in (None, "", "None"):
+        _auc = f"{_auc} (DE {es(_r.get('cv_auc_std'), 3)})"
+        _strategy = "CV estratificada (3 folds)"
+    else:
+        _strategy = "Validación interna 20 %"
+    sel_rows.append([
+        _name, _auc, _strategy, es(_r.get("threshold"), 3),
+        final_params[_name], es(_r.get("duration_seconds"), 1),
+    ])
+add_table(
+    ["Modelo", "AUC de selección", "Estrategia de selección", "Umbral F1", "Configuración final", "Tiempo (s)"],
+    sel_rows,
+    caption="Tabla 4 · Optimización de hiperparámetros y selección interna del modelo (Framingham).",
+    note=(
+        "AUC de selección = AUC-ROC media de la validación cruzada estratificada de tres folds "
+        "(Random Forest y XGBoost) o AUC-ROC del 20 % interno de validación (Cox PH, XGBoost-Cox y "
+        "LSTM-Attention-Cox); el holdout de prueba no intervino. DE = desviación estándar entre folds. "
+        "Umbral F1 = punto de corte que maximiza F1 en la validación interna. η = tasa de aprendizaje; "
+        "λ = regularización L2. Tiempo = duración registrada del ajuste completo. Valores tomados de "
+        "data/results/model_comparison.json y de los artefactos de la corrida."
+    ),
+    col_widths=[0.85, 0.72, 0.95, 0.50, 2.45, 0.50],
+)
+h2("3.4. Discriminación en el holdout de prueba")
 para(
     "En el holdout de prueba, XGBoost-Cox alcanzó la mayor AUC-ROC puntual (0,703), seguido de Cox PH (0,700) y "
-    "Random Forest (0,672) (Tabla 4; Figura 3). Las diferencias entre modelos fueron pequeñas respecto de la "
+    "Random Forest (0,672) (Tabla 5; Figura 3). Las diferencias entre modelos fueron pequeñas respecto de la "
     "incertidumbre del intervalo de bootstrap, con intervalos ampliamente solapados. XGBoost-Cox mostró la mejor "
     "calibración (pendiente 0,94, ECE 0,0235) y el mejor Brier (0,1205). Cox PH mostró la mejor pendiente de "
     "calibración (1,009, cercana a la ideal) y el mejor Hosmer-Lemeshow (p = 0,6242). Random Forest mostró la "
@@ -450,7 +534,7 @@ add_table(
         ["XGBoost-Cox", ci("XGBoost-Cox"), fnum(comparison.get("XGBoost-Cox", {}).get("pr_auc")), fnum(comparison.get("XGBoost-Cox", {}).get("brier")), fnum(comparison.get("XGBoost-Cox", {}).get("sensitivity")), fnum(comparison.get("XGBoost-Cox", {}).get("specificity")), fnum(comparison.get("XGBoost-Cox", {}).get("f1")), fnum(comparison.get("XGBoost-Cox", {}).get("mcc")), fnum(comparison.get("XGBoost-Cox", {}).get("threshold"))],
         ["LSTM-Attention-Cox", ci("LSTM-Attention-Cox"), fnum(comparison.get("LSTM-Attention-Cox", {}).get("pr_auc")), fnum(comparison.get("LSTM-Attention-Cox", {}).get("brier")), fnum(comparison.get("LSTM-Attention-Cox", {}).get("sensitivity")), fnum(comparison.get("LSTM-Attention-Cox", {}).get("specificity")), fnum(comparison.get("LSTM-Attention-Cox", {}).get("f1")), fnum(comparison.get("LSTM-Attention-Cox", {}).get("mcc")), fnum(comparison.get("LSTM-Attention-Cox", {}).get("threshold"))],
     ],
-    caption="Tabla 4 · Rendimiento en el holdout de prueba (Framingham, n=848, 129 eventos).",
+    caption="Tabla 5 · Rendimiento en el holdout de prueba (Framingham, n=848, 129 eventos).",
     note="Todos los valores se generaron ejecutando los modelos con scripts/run_experiment.py y scripts/export_results.py. AUC-ROC = área bajo la curva ROC; AUC-PR = área bajo la curva de precisión-exhaustividad; IC = intervalo de confianza bootstrap (200 réplicas); Brier = puntaje de Brier; F1 = puntuación F1; MCC = coeficiente de correlación de Matthews.",
 )
 doc.add_paragraph()
@@ -463,9 +547,9 @@ doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
 para("Las curvas se generaron a partir de las probabilidades reales de prueba de cada modelo. La línea diagonal representa el clasificador aleatorio (AUC = 0,5).", size=10, italic=True)
 doc.add_paragraph()
 
-h2("3.4. Calibración y comparaciones pareadas (DeLong)")
+h2("3.5. Calibración y comparaciones pareadas (DeLong)")
 para(
-    "La Tabla 5 muestra la calibración por modelo. Cox PH tuvo la mejor pendiente de calibración (1,009, próxima a 1) y el mejor intercepto (0,177), con un ECE bajo (0,0232) y Hosmer-Lemeshow no significativo (p = 0,6242), indicando buena concordancia entre riesgos estimados y frecuencias observadas. XGBoost-Cox mostró pendiente cercana a 1 (0,94) y el menor ECE (0,0235). Random Forest mostró pendiente por debajo de 1 (0,71), indicando sobreestimación de riesgos en rangos altos."
+    "La Tabla 6 muestra la calibración por modelo. Cox PH tuvo la mejor pendiente de calibración (1,009, próxima a 1) y el mejor intercepto (0,177), con un ECE bajo (0,0232) y Hosmer-Lemeshow no significativo (p = 0,6242), indicando buena concordancia entre riesgos estimados y frecuencias observadas. XGBoost-Cox mostró pendiente cercana a 1 (0,94) y el menor ECE (0,0235). Random Forest mostró pendiente por debajo de 1 (0,71), indicando sobreestimación de riesgos en rangos altos."
 )
 add_table(
     ["Modelo", "Pendiente", "Intercepto", "ECE", "Hosmer-Lemeshow p"],
@@ -476,7 +560,7 @@ add_table(
         ["XGBoost-Cox", fnum(calib.get("XGBoost-Cox", {}).get("slope")), fnum(calib.get("XGBoost-Cox", {}).get("intercept")), fnum(calib.get("XGBoost-Cox", {}).get("ece")), fnum(calib.get("XGBoost-Cox", {}).get("hosmer_lemeshow_p"), 4)],
         ["LSTM-Attention-Cox", fnum(calib.get("LSTM-Attention-Cox", {}).get("slope")), fnum(calib.get("LSTM-Attention-Cox", {}).get("intercept")), fnum(calib.get("LSTM-Attention-Cox", {}).get("ece")), fnum(calib.get("LSTM-Attention-Cox", {}).get("hosmer_lemeshow_p"), 4)],
     ],
-    caption="Tabla 5 · Calibración en el holdout de prueba (Framingham).",
+    caption="Tabla 6 · Calibración en el holdout de prueba (Framingham).",
     note="Pendiente e intercepto de la regresión logística de logit(Y) sobre logit(p). ECE = error de calibración esperado. Hosmer-Lemeshow p sobre deciles de probabilidad predicha.",
 )
 doc.add_paragraph()
@@ -490,7 +574,7 @@ para("Cada punto representa un decil de probabilidad predicha; la línea diagona
 doc.add_paragraph()
 
 para(
-    "La Tabla 6 muestra las comparaciones pareadas de AUC con la prueba de DeLong. Ninguna diferencia entre "
+    "La Tabla 7 muestra las comparaciones pareadas de AUC con la prueba de DeLong. Ninguna diferencia entre "
     "modelos fue estadísticamente robusta tras considerar la incertidumbre: las diferencias de AUC fueron "
     "pequeñas (máxima 0,0846 entre XGBoost-Cox y LSTM) y los intervalos de confianza se solaparon ampliamente. "
     "Por tanto, no se puede afirmar superioridad de un modelo sobre otro en esta población."
@@ -501,11 +585,11 @@ add_table(
         [r["model_a"], r["model_b"], fnum(r.get("difference")), fnum(r.get("z")), fnum(r.get("p_value"), 4)]
         for r in delong
     ],
-    caption="Tabla 6 · Comparaciones pareadas de AUC-ROC (prueba de DeLong, Framingham).",
+    caption="Tabla 7 · Comparaciones pareadas de AUC-ROC (prueba de DeLong, Framingham).",
     note="ΔAUC = AUC_A − AUC_B. Se compararon todos los pares sobre el mismo holdout de prueba. Ninguna diferencia alcanzó significancia robusta tras ajuste por múltiples comparaciones.",
 )
 
-h2("3.5. Utilidad, subgrupos y equidad")
+h2("3.6. Utilidad, subgrupos y equidad")
 para(
     "El análisis de curvas de decisión (DCA) se generó para cada modelo sobre el holdout de prueba. El beneficio "
     "neto del modelo fue positivo en el rango de umbrales clínicamente razonable (aprox. 0,05–0,40) para todos los "
@@ -522,7 +606,7 @@ doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
 para("Beneficio neto clínico de cada modelo frente a las estrategias universales de tratar a todos (línea gris punteada) o no tratar a ninguno en función de la probabilidad umbral de intervención médica (pt).", size=10, italic=True)
 doc.add_paragraph()
 para(
-    "El análisis de subgrupos (Tabla 7) mostró variación de la discriminación por sexo y edad. La AUC fue "
+    "El análisis de subgrupos (Tabla 8) mostró variación de la discriminación por sexo y edad. La AUC fue "
     "generalmente similar entre mujeres y hombres, pero con intervalos amplios en subgrupos pequeños (por ejemplo, "
     "educación universitaria, n=88 en prueba). No se detectaron diferencias de gran magnitud que sugirieran sesgo "
     "sistemático, pero el tamaño reducido de algunos subgrupos limita la potencia para detectar inequidad. "
@@ -544,7 +628,7 @@ for model in ["Random Forest", "XGBoost", "Cox PH", "XGBoost-Cox", "LSTM-Attenti
 add_table(
     ["Modelo", "Variable", "Grupo", "n", "Eventos", "AUC", "Brier"],
     subgroup_rows,
-    caption="Tabla 7 · Métricas de subgrupo en el holdout de prueba (Framingham).",
+    caption="Tabla 8 · Métricas de subgrupo en el holdout de prueba (Framingham).",
     note="Solo se muestran subgrupos con n ≥ 20. Las métricas se calcularon sobre el holdout de prueba sin usarlas para ajuste del modelo.",
 )
 doc.add_paragraph()
@@ -557,7 +641,7 @@ doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
 para("Distribución normalizada de la importancia predictiva de las variables basales clínicas y conductuales en la cohorte Framingham.", size=10, italic=True)
 doc.add_paragraph()
 
-h2("3.6. Respuesta principal, integración socioambiental y validez")
+h2("3.7. Respuesta principal, integración socioambiental y validez")
 para(
     "La respuesta principal es de alcance: CARDIOAI implementa los componentes de un flujo experimental que "
     "permite comparar modelos y variables contextuales, pero el repositorio inspeccionado no contiene evidencia "
@@ -587,7 +671,7 @@ para(
     "una convención de demostración y nunca un mecanismo suficiente para activar un modelo asistencial."
 )
 
-h2("3.7. Fortalezas, limitaciones y líneas de investigación futura")
+h2("3.8. Fortalezas, limitaciones y líneas de investigación futura")
 para(
     "Entre las fortalezas, el estudio diferencia los hechos inspeccionados de las hipótesis, documenta las "
     "variables y la partición exacta del archivo, contempla discriminación, calibración y utilidad, y explicita "
@@ -595,7 +679,8 @@ para(
     "clínicas y de validación externa, el mecanismo de desenlace conocido y sintético en la fuente original, el "
     "tamaño reducido de la muestra y de la retención geográfica (no aplicable a una sola región), las exposiciones "
     "ambientales no disponibles en Framingham, la falta de comprobación de las mediciones biomédicas y el posible "
-    "solapamiento entre particiones. Las cifras observadas no corrigen ninguna de estas limitaciones."
+    "solapamiento entre particiones y la inestabilidad de la selección interna frente al holdout. Las "
+    "cifras observadas no corrigen ninguna de estas limitaciones."
 )
 para(
     "De ellas se derivan las líneas de investigación futura. El siguiente estudio debe emplear una cohorte "
